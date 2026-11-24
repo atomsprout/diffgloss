@@ -3,6 +3,25 @@
   "version": "0.2.0",
   "description": "Explainability-first code review ledger: verifiable per-hunk coverage, evidence-backed explanations, symmetric-proof review, and interactive browser diff tours.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/atomsprout/diffgloss.git"
+  },
+  "homepage": "https://github.com/atomsprout/diffgloss#readme",
+  "bugs": {
+    "url": "https://github.com/atomsprout/diffgloss/issues"
+  },
+  "keywords": [
+    "code-review",
+    "diff",
+    "ai",
+    "explainability",
+    "llm",
+    "mcp",
+    "sarif",
+    "git",
+    "cli"
+  ],
   "type": "module",
   "bin": {
     "diffgloss": "./dist/cli.js"
