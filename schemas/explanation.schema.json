@@ -1,0 +1,431 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diffgloss.dev/schemas/explanation.v0.json",
+  "title": "Diffgloss Explanation Ledger (v0)",
+  "description": "Verifiable per-hunk explainability ledger for a code diff.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at",
+    "overview",
+    "groups",
+    "hunks",
+    "questions",
+    "coverage"
+  ],
+  "properties": {
+    "schema": {
+      "const": "diffgloss.explanation/v0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string" },
+        "base_ref": { "type": "string" },
+        "head_ref": { "type": "string" },
+        "diff_args": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "skipped_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "reason"],
+            "properties": {
+              "path": { "type": "string" },
+              "reason": {
+                "type": "string",
+                "enum": ["binary", "secret_suspected", "oversized", "excluded"]
+              }
+            }
+          }
+        },
+        "rules_loaded": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "behavior_change"],
+      "properties": {
+        "title": { "type": "string" },
+        "behavior_change": { "type": "string" },
+        "declared_intent": { "type": "string" },
+        "declared_intent_ref": {
+          "type": "string",
+          "enum": ["prompt", "pr_description", "plan", "commit_message", "none"]
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "intent", "risk", "hunk_ids"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "intent": { "type": "string" },
+          "order_rationale": { "type": "string" },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "collapsed_by_default": { "type": "boolean" },
+          "intent_ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["prompt", "plan_item", "issue", "pr_description"]
+              },
+              "ref": { "type": "string" }
+            }
+          },
+          "hunk_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "hunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "old_range",
+          "new_range",
+          "class",
+          "class_by",
+          "status",
+          "risk",
+          "patch"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^h_[a-f0-9]{8,64}$" },
+          "path": { "type": "string", "minLength": 1 },
+          "old_path": { "type": "string" },
+          "change_type": {
+            "type": "string",
+            "enum": ["modified", "added", "deleted", "renamed"]
+          },
+          "enclosing_symbol": { "type": "string" },
+          "old_range": {
+            "type": "array",
+            "prefixItems": [
+              { "type": "integer", "minimum": 0 },
+              { "type": "integer", "minimum": 0 }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "new_range": {
+            "type": "array",
+            "prefixItems": [
+              { "type": "integer", "minimum": 0 },
+              { "type": "integer", "minimum": 0 }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "substantive",
+              "mechanical",
+              "generated",
+              "moved",
+              "test",
+              "config"
+            ]
+          },
+          "class_by": {
+            "type": "string",
+            "enum": ["deterministic", "llm"]
+          },
+          "class_reason": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["explained", "collapsed", "unexplained"]
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"]
+          },
+          "header": { "type": "string" },
+          "patch": { "type": "string" },
+          "what": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "citations", "citations_valid", "semantic_grounding"],
+            "properties": {
+              "text": { "type": "string" },
+              "citations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "lines", "side"],
+                  "properties": {
+                    "path": { "type": "string" },
+                    "lines": {
+                      "type": "array",
+                      "prefixItems": [
+                        { "type": "integer", "minimum": 1 },
+                        { "type": "integer", "minimum": 1 }
+                      ],
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "side": {
+                      "type": "string",
+                      "enum": ["old", "new"]
+                    }
+                  }
+                }
+              },
+              "citations_valid": { "type": "boolean" },
+              "citation_errors": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "semantic_grounding": {
+                "type": "string",
+                "enum": ["unchecked", "judge_passed", "judge_failed", "test_backed"]
+              },
+              "semantic_note": { "type": "string" }
+            }
+          },
+          "why": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "source", "evidence", "verification"],
+            "properties": {
+              "text": { "type": "string" },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "transcript",
+                  "declared_intent",
+                  "author_answer",
+                  "reviewer_inferred",
+                  "missing"
+                ]
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "ref"],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "transcript_turn",
+                        "tool_use",
+                        "test_run",
+                        "call_site",
+                        "declared_intent"
+                      ]
+                    },
+                    "ref": { "type": "string" },
+                    "excerpt": { "type": "string" }
+                  }
+                }
+              },
+              "verification": {
+                "type": "string",
+                "enum": ["confirmed", "refuted", "unverifiable", "not_checked"]
+              }
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["format"],
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["git-ai", "agent-trace", "entire", "hook", "session-scan", "none"]
+              },
+              "session_id": { "type": "string" },
+              "agent": { "type": "string" },
+              "model": { "type": "string" }
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "finding_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "moved_from": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "old_range"],
+            "properties": {
+              "path": { "type": "string" },
+              "old_range": {
+                "type": "array",
+                "prefixItems": [
+                  { "type": "integer", "minimum": 0 },
+                  { "type": "integer", "minimum": 0 }
+                ],
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "hunk_ids", "trigger", "question", "channel"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "hunk_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "no_evidence_for_why",
+              "unrelated_to_intent",
+              "test_assertion_changed",
+              "claim_mismatch",
+              "safety_check_removed"
+            ]
+          },
+          "question": { "type": "string", "minLength": 1 },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "write_time_manifest",
+              "transcript_lookup",
+              "session_resume",
+              "acp",
+              "human"
+            ]
+          },
+          "answer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text", "answered_by", "at"],
+            "properties": {
+              "text": { "type": "string" },
+              "answered_by": { "type": "string" },
+              "at": { "type": "string", "format": "date-time" },
+              "session_forked": { "type": "boolean" }
+            }
+          },
+          "verdict": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["confirmed", "refuted", "unverifiable"]
+              },
+              "verifier_model": { "type": "string" },
+              "evidence": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rule_id", "tool", "severity", "category", "path", "lines", "message", "fingerprint"],
+        "properties": {
+          "id": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "tool": { "type": "string" },
+          "severity": { "type": "string", "enum": ["important", "nit", "info"] },
+          "category": {
+            "type": "string",
+            "enum": ["intent_mismatch", "test_weakened", "guard_removed", "silent_error", "scope_creep", "external_sarif"]
+          },
+          "path": { "type": "string" },
+          "lines": {
+            "type": "array",
+            "prefixItems": [
+              { "type": "integer", "minimum": 1 },
+              { "type": "integer", "minimum": 1 }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "hunk_id": { "type": "string" },
+          "message": { "type": "string" },
+          "evidence": { "type": "string" },
+          "fingerprint": { "type": "string" }
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "input_tokens", "output_tokens", "cached_input_tokens", "estimated_usd", "budget_usd", "budget_exceeded"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "judge_model": { "type": "string" },
+        "input_tokens": { "type": "integer", "minimum": 0 },
+        "output_tokens": { "type": "integer", "minimum": 0 },
+        "cached_input_tokens": { "type": "integer", "minimum": 0 },
+        "estimated_usd": { "type": "number", "minimum": 0 },
+        "budget_usd": { "type": "number", "minimum": 0 },
+        "budget_exceeded": { "type": "boolean" }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "explained", "collapsed", "unexplained"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "explained": { "type": "integer", "minimum": 0 },
+        "collapsed": { "type": "integer", "minimum": 0 },
+        "unexplained": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

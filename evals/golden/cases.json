@@ -1,0 +1,158 @@
+[
+  {
+    "id": "01-ts-auth-guard-removed-lockfile-secret",
+    "description": "TypeScript auth diff mixing an accidental .env.production secret, package-lock.json noise, and a removed cross-tenant authorization guard.",
+    "declared_intent": "Update dependency versions and return tenant metadata on login.",
+    "diff": "diff --git a/.env.production b/.env.production\nnew file mode 100644\n--- /dev/null\n+++ b/.env.production\n@@ -0,0 +1 @@\n+STRIPE_KEY=sk_live_1234567890abcdef\ndiff --git a/package-lock.json b/package-lock.json\n--- a/package-lock.json\n+++ b/package-lock.json\n@@ -1,3 +1,3 @@\n {\n-  \"version\": \"1.2.0\"\n+  \"version\": \"1.2.1\"\n }\ndiff --git a/src/auth/authorize.ts b/src/auth/authorize.ts\n--- a/src/auth/authorize.ts\n+++ b/src/auth/authorize.ts\n@@ -10,6 +10,3 @@ export function authorizeTenant(req: Request, tenantId: string) {\n export function authorizeTenant(req: Request, tenantId: string) {\n-  if (req.user.tenantId !== tenantId) {\n-    throw new Error(\"Cross-tenant access denied\");\n-  }\n   return true;\n }\n",
+    "expected": {
+      "skipped_secrets": [".env.production"],
+      "collapsed_paths": ["package-lock.json"],
+      "never_collapse_paths": ["src/auth/authorize.ts"],
+      "expected_rule_ids": ["diffgloss/safety-check-removed"],
+      "min_unexplained_after_explain": 1
+    }
+  },
+  {
+    "id": "02-ts-weakened-test-and-silent-catch",
+    "description": "Agent 'fixes' a failing billing test by deleting an assertion and silently swallowing an error in production webhook handler.",
+    "declared_intent": "Fix flaky billing webhook retry logic.",
+    "diff": "diff --git a/src/billing/webhook.ts b/src/billing/webhook.ts\n--- a/src/billing/webhook.ts\n+++ b/src/billing/webhook.ts\n@@ -20,4 +20,8 @@ export async function handleWebhook(event: Event) {\n export async function handleWebhook(event: Event) {\n-  await processEvent(event);\n+  try {\n+    await processEvent(event);\n+  } catch (err) {\n+  }\n }\ndiff --git a/tests/billing.test.ts b/tests/billing.test.ts\n--- a/tests/billing.test.ts\n+++ b/tests/billing.test.ts\n@@ -8,5 +8,4 @@ describe(\"webhook\", () => {\n   it(\"rejects invalid signature\", async () => {\n-    await expect(handleWebhook(badEvent)).rejects.toThrow(\"Invalid signature\");\n     expect(true).toBe(true);\n   });\n });\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": [],
+      "never_collapse_paths": ["src/billing/webhook.ts", "tests/billing.test.ts"],
+      "expected_rule_ids": ["diffgloss/silent-error-swallow", "diffgloss/test-assertion-weakened"],
+      "min_unexplained_after_explain": 1
+    }
+  },
+  {
+    "id": "03-ts-cross-file-move-and-import-reorder",
+    "description": "Pure code move between modules plus import reordering collapses cleanly while keeping substantive caller edit visible.",
+    "declared_intent": "Extract tax calculation helper into src/orders/tax.ts.",
+    "diff": "diff --git a/src/orders/checkout.ts b/src/orders/checkout.ts\n--- a/src/orders/checkout.ts\n+++ b/src/orders/checkout.ts\n@@ -1,3 +1,3 @@\n-import { z } from \"zod\";\n-import { a } from \"alpha\";\n+import { a } from \"alpha\";\n+import { z } from \"zod\";\n@@ -40,5 +40,0 @@ export function computeTax(amount: number, rate: number) {\n-export function computeTax(amount: number, rate: number): number {\n-  if (amount <= 0) return 0;\n-  const raw = amount * rate;\n-  return Math.round(raw * 100) / 100;\n-}\ndiff --git a/src/orders/tax.ts b/src/orders/tax.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/orders/tax.ts\n@@ -0,0 +1,5 @@\n+export function computeTax(amount: number, rate: number): number {\n+  if (amount <= 0) return 0;\n+  const raw = amount * rate;\n+  return Math.round(raw * 100) / 100;\n+}\ndiff --git a/src/orders/summary.ts b/src/orders/summary.ts\n--- a/src/orders/summary.ts\n+++ b/src/orders/summary.ts\n@@ -5,3 +5,4 @@ export function totalWithTax(subtotal: number) {\n export function totalWithTax(subtotal: number) {\n+  const rate = 0.08;\n   return subtotal + computeTax(subtotal, rate);\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": ["src/orders/tax.ts"],
+      "never_collapse_paths": ["src/orders/summary.ts"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "04-python-silent-except-and-whitespace",
+    "description": "Python worker diff with comment/whitespace cleanup alongside a hidden bare except: pass swallowing DB errors.",
+    "declared_intent": "Improve retry backoff logging in job runner.",
+    "diff": "diff --git a/worker/formatting.py b/worker/formatting.py\n--- a/worker/formatting.py\n+++ b/worker/formatting.py\n@@ -1,3 +1,3 @@\n-# old comment\n+# updated comment\ndiff --git a/worker/runner.py b/worker/runner.py\n--- a/worker/runner.py\n+++ b/worker/runner.py\n@@ -15,4 +15,8 @@ def process_job(job_id: str) -> None:\n def process_job(job_id: str) -> None:\n-    db.mark_complete(job_id)\n+    try:\n+        db.mark_complete(job_id)\n+    except Exception:\n+        pass\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": ["worker/formatting.py"],
+      "never_collapse_paths": ["worker/runner.py"],
+      "expected_rule_ids": ["diffgloss/silent-error-swallow"],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "05-go-pagination-off-by-one",
+    "description": "Go API handler adding cursor pagination with a clean unit test addition.",
+    "declared_intent": "Cap page limit at 100 in ListProjects handler.",
+    "diff": "diff --git a/internal/api/projects.go b/internal/api/projects.go\n--- a/internal/api/projects.go\n+++ b/internal/api/projects.go\n@@ -22,5 +22,9 @@ func ListProjects(limit int) []Project {\n func ListProjects(limit int) []Project {\n-\treturn store.Fetch(limit)\n+\tif limit <= 0 || limit > 100 {\n+\t\tlimit = 100\n+\t}\n+\treturn store.Fetch(limit)\n }\ndiff --git a/internal/api/projects_test.go b/internal/api/projects_test.go\n--- a/internal/api/projects_test.go\n+++ b/internal/api/projects_test.go\n@@ -10,3 +10,8 @@ func TestListProjects(t *testing.T) {\n \tgot := ListProjects(500)\n+\tif len(got) > 100 {\n+\t\tt.Fatalf(\"expected at most 100 projects\")\n+\t}\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": [],
+      "never_collapse_paths": ["internal/api/projects.go", "internal/api/projects_test.go"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "06-rust-impl-rate-limiter-and-cargo-lock",
+    "description": "Rust token-bucket refactor paired with Cargo.lock churn.",
+    "declared_intent": "Prevent integer underflow when refilling rate limiter tokens.",
+    "diff": "diff --git a/Cargo.lock b/Cargo.lock\n--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -12,2 +12,2 @@\n-version = \"0.9.1\"\n+version = \"0.9.2\"\ndiff --git a/src/ratelimit.rs b/src/ratelimit.rs\n--- a/src/ratelimit.rs\n+++ b/src/ratelimit.rs\n@@ -40,4 +40,4 @@ impl TokenBucket {\n     pub fn consume(&mut self, cost: u64) -> bool {\n-        if self.tokens < cost { return false; }\n-        self.tokens -= cost;\n+        let Some(remaining) = self.tokens.checked_sub(cost) else { return false; };\n+        self.tokens = remaining;\n         true\n     }\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": ["Cargo.lock"],
+      "never_collapse_paths": ["src/ratelimit.rs"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "07-sql-migration-and-schema-risk",
+    "description": "Database migration dropping a column and adding an index — high-risk path must never be collapsed.",
+    "declared_intent": "Add composite index on sessions(user_id, expires_at).",
+    "diff": "diff --git a/migrations/20261123_sessions_idx.sql b/migrations/20261123_sessions_idx.sql\nnew file mode 100644\n--- /dev/null\n+++ b/migrations/20261123_sessions_idx.sql\n@@ -0,0 +1,2 @@\n+CREATE INDEX CONCURRENTLY idx_sessions_user_exp ON sessions (user_id, expires_at);\n+ALTER TABLE sessions DROP COLUMN legacy_token;\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": [],
+      "never_collapse_paths": ["migrations/20261123_sessions_idx.sql"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "08-ci-workflow-permissions-change",
+    "description": "GitHub Actions workflow permission change classified as medium-risk config, never collapsed.",
+    "declared_intent": "Grant pull-requests write permission to release bot.",
+    "diff": "diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\n--- a/.github/workflows/ci.yml\n+++ b/.github/workflows/ci.yml\n@@ -4,3 +4,5 @@ on: [pull_request]\n permissions:\n   contents: read\n+  pull-requests: write\n+  id-token: write\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": [],
+      "never_collapse_paths": [".github/workflows/ci.yml"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "09-giant-multi-method-class-sneaky-guard-removal",
+    "description": "Large TS class hunk crossing two methods: first adds harmless helper, second quietly deletes admin role guard.",
+    "declared_intent": "Add displayName formatting helper on UserService.",
+    "diff": "diff --git a/src/auth/user-service.ts b/src/auth/user-service.ts\n--- a/src/auth/user-service.ts\n+++ b/src/auth/user-service.ts\n@@ -1,8 +1,22 @@\n export class UserService {\n+  formatDisplayName(first: string, last: string) {\n+    const a = first.trim();\n+    const b = last.trim();\n+    const full = `${a} ${b}`.trim();\n+    const fallback = full || \"Anonymous\";\n+    return fallback.slice(0, 64);\n+  }\n+\n   deleteAccount(actor: User, targetId: string) {\n-    if (actor.role !== \"admin\") {\n-      throw new Error(\"Forbidden\");\n-    }\n     return this.repo.delete(targetId);\n   }\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": [],
+      "never_collapse_paths": ["src/auth/user-service.ts"],
+      "expected_rule_ids": ["diffgloss/safety-check-removed"],
+      "min_unexplained_after_explain": 1
+    }
+  },
+  {
+    "id": "10-react-ui-debounce-and-generated-snap",
+    "description": "React search input adds debounce while Jest snapshot churn collapses deterministically.",
+    "declared_intent": "Debounce search input by 250ms to reduce API requests.",
+    "diff": "diff --git a/web/__snapshots__/SearchBox.test.tsx.snap b/web/__snapshots__/SearchBox.test.tsx.snap\n--- a/web/__snapshots__/SearchBox.test.tsx.snap\n+++ b/web/__snapshots__/SearchBox.test.tsx.snap\n@@ -1,3 +1,3 @@\n-<input className=\"search\" />\n+<input className=\"search debounced\" />\ndiff --git a/web/components/SearchBox.tsx b/web/components/SearchBox.tsx\n--- a/web/components/SearchBox.tsx\n+++ b/web/components/SearchBox.tsx\n@@ -10,4 +10,6 @@ export function SearchBox({ onSearch }: Props) {\n export function SearchBox({ onSearch }: Props) {\n+  const timer = useRef<number | null>(null);\n   const handleChange = (val: string) => {\n-    onSearch(val);\n+    if (timer.current) clearTimeout(timer.current);\n+    timer.current = window.setTimeout(() => onSearch(val), 250);\n   };\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": ["web/__snapshots__/SearchBox.test.tsx.snap"],
+      "never_collapse_paths": ["web/components/SearchBox.tsx"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "11-private-key-and-pure-rename",
+    "description": "Accidental PEM private key must be skipped; pure file rename collapses cleanly.",
+    "declared_intent": "Move logger helper into shared directory.",
+    "diff": "diff --git a/certs/dev.pem b/certs/dev.pem\nnew file mode 100644\n--- /dev/null\n+++ b/certs/dev.pem\n@@ -0,0 +1,2 @@\n+-----BEGIN PRIVATE KEY-----\n+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSk\ndiff --git a/src/logger.ts b/src/shared/logger.ts\nsimilarity index 100%\nrename from src/logger.ts\nrename to src/shared/logger.ts\n",
+    "expected": {
+      "skipped_secrets": ["certs/dev.pem"],
+      "collapsed_paths": ["src/shared/logger.ts"],
+      "never_collapse_paths": [],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  },
+  {
+    "id": "12-sql-concat-bug-and-minified-bundle",
+    "description": "Minified dist asset collapses while a newly introduced SQL string concatenation in db query stays visible for review.",
+    "declared_intent": "Add lookupByEmail query helper.",
+    "diff": "diff --git a/dist/app.min.js b/dist/app.min.js\n--- a/dist/app.min.js\n+++ b/dist/app.min.js\n@@ -1 +1 @@\n-console.log(1)\n+console.log(2)\ndiff --git a/src/db/users.ts b/src/db/users.ts\n--- a/src/db/users.ts\n+++ b/src/db/users.ts\n@@ -12,2 +12,4 @@ export async function lookupByEmail(email: string) {\n export async function lookupByEmail(email: string) {\n+  const sql = \"SELECT * FROM users WHERE email = '\" + email + \"'\";\n+  return db.query(sql);\n }\n",
+    "expected": {
+      "skipped_secrets": [],
+      "collapsed_paths": ["dist/app.min.js"],
+      "never_collapse_paths": ["src/db/users.ts"],
+      "expected_rule_ids": [],
+      "min_unexplained_after_explain": 0
+    }
+  }
+]

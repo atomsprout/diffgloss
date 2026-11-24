@@ -1,0 +1,70 @@
+name: Diffgloss Review Ledger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  diffgloss:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build Diffgloss
+        run: npm ci && npm run build
+
+      - name: Generate Diffgloss Explainability Ledger
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          node dist/cli.js explain "${BASE_SHA}..${HEAD_SHA}" \
+            --base "${BASE_SHA}" \
+            --title "PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
+            --intent "${{ github.event.pull_request.title }}" \
+            --out .diffgloss/report.html \
+            --json-out .diffgloss/ledger.json \
+            --md-out .diffgloss/report.md \
+            --sarif-out .diffgloss/report.sarif \
+            --review
+
+      - name: Upload Interactive Browser Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: diffgloss-report-pr-${{ github.event.pull_request.number }}
+          path: |
+            .diffgloss/report.html
+            .diffgloss/ledger.json
+            .diffgloss/report.md
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: .diffgloss/report.sarif
+
+      - name: Sync Coverage Ledger & Inline Findings to PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node dist/cli.js pr-comment \
+            --repo "${{ github.repository }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --ledger .diffgloss/ledger.json

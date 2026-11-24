@@ -1,0 +1,152 @@
+{
+  "schema": "diffgloss.explanation/v0",
+  "generated_at": "2026-11-23T20:20:00.000Z",
+  "source": {
+    "repo": "acme-api",
+    "base_ref": "main",
+    "head_ref": "feat/session-sliding-ttl",
+    "diff_args": ["main..HEAD"],
+    "skipped_files": [
+      { "path": ".env.local", "reason": "secret_suspected" }
+    ]
+  },
+  "overview": {
+    "title": "Sliding TTL for Auth Sessions",
+    "behavior_change": "Extends active session expiration on authenticated requests while surfacing one unexplained guard removal in session validation.",
+    "declared_intent": "Implement 30-minute sliding session expiration for active users without loosening revoked-token checks.",
+    "declared_intent_ref": "prompt",
+    "risk": "high"
+  },
+  "groups": [
+    {
+      "id": "g1",
+      "title": "Session expiration & validation logic",
+      "intent": "Core session TTL renewal plus an unexplained removal of the revoked-session check.",
+      "order_rationale": "Auth path ranked first due to high risk and one unexplained safety check removal.",
+      "risk": "high",
+      "hunk_ids": ["h_aaaaaaaa1111", "h_bbbbbbbb2222"]
+    },
+    {
+      "id": "g2",
+      "title": "Mechanical & lockfile updates",
+      "intent": "Auto-generated lockfile diff collapsed by default.",
+      "order_rationale": "Collapsed deterministically to save reviewer attention.",
+      "risk": "low",
+      "collapsed_by_default": true,
+      "hunk_ids": ["h_cccccccc3333"]
+    }
+  ],
+  "hunks": [
+    {
+      "id": "h_aaaaaaaa1111",
+      "path": "src/auth/session.ts",
+      "change_type": "modified",
+      "enclosing_symbol": "export async function touchSession(session: Session)",
+      "old_range": [12, 18],
+      "new_range": [12, 22],
+      "class": "substantive",
+      "class_by": "deterministic",
+      "status": "explained",
+      "risk": "medium",
+      "header": "@@ -12,7 +12,11 @@ export async function touchSession(session: Session)",
+      "patch": "@@ -12,7 +12,11 @@ export async function touchSession(session: Session)\n export async function touchSession(session: Session) {\n   const now = Date.now();\n-  return session.expiresAt > now;\n+  if (session.expiresAt <= now) {\n+    return false;\n+  }\n+  session.expiresAt = now + SLIDING_TTL_MS;\n+  return true;\n }",
+      "what": {
+        "text": "Updates `touchSession` to reject expired sessions and extend `expiresAt` by `SLIDING_TTL_MS` when valid.",
+        "citations": [
+          { "path": "src/auth/session.ts", "lines": [15, 19], "side": "new" }
+        ],
+        "citations_valid": true,
+        "semantic_grounding": "judge_passed"
+      },
+      "why": {
+        "text": "Directly implements the requested 30-minute sliding TTL renewal for active sessions.",
+        "source": "declared_intent",
+        "evidence": [
+          {
+            "kind": "declared_intent",
+            "ref": "prompt#1",
+            "excerpt": "Implement 30-minute sliding session expiration for active users"
+          }
+        ],
+        "verification": "confirmed"
+      },
+      "provenance": {
+        "format": "hook",
+        "session_id": "sess_demo_01",
+        "agent": "claude-code"
+      }
+    },
+    {
+      "id": "h_bbbbbbbb2222",
+      "path": "src/auth/session.ts",
+      "change_type": "modified",
+      "enclosing_symbol": "export function verifySession(session: Session)",
+      "old_range": [30, 38],
+      "new_range": [34, 39],
+      "class": "substantive",
+      "class_by": "deterministic",
+      "class_reason": "Sensitive path + guard/check removed",
+      "status": "unexplained",
+      "risk": "high",
+      "header": "@@ -30,9 +34,6 @@ export function verifySession(session: Session)",
+      "patch": "@@ -30,9 +34,6 @@ export function verifySession(session: Session)\n export function verifySession(session: Session) {\n-  if (session.revokedAt !== null) {\n-    throw new AuthError(\"Session revoked\");\n-  }\n   return session.expiresAt > Date.now();\n }",
+      "why": {
+        "text": "No evidence in prompt or transcript explains removing the revokedAt guard.",
+        "source": "missing",
+        "evidence": [],
+        "verification": "not_checked"
+      },
+      "provenance": {
+        "format": "none"
+      },
+      "questions": ["q1"]
+    },
+    {
+      "id": "h_cccccccc3333",
+      "path": "package-lock.json",
+      "change_type": "modified",
+      "old_range": [1, 4],
+      "new_range": [1, 4],
+      "class": "generated",
+      "class_by": "deterministic",
+      "class_reason": "Matched generated/lockfile/vendor rule",
+      "status": "collapsed",
+      "risk": "low",
+      "header": "@@ -1,4 +1,4 @@",
+      "patch": "@@ -1,4 +1,4 @@\n {\n-  \"lockfileVersion\": 2\n+  \"lockfileVersion\": 3\n }",
+      "why": {
+        "text": "Matched generated/lockfile/vendor rule",
+        "source": "reviewer_inferred",
+        "evidence": [],
+        "verification": "not_checked"
+      },
+      "provenance": { "format": "none" }
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "hunk_ids": ["h_bbbbbbbb2222"],
+      "trigger": "safety_check_removed",
+      "question": "In src/auth/session.ts (lines 30-38), the `session.revokedAt !== null` check was removed even though the declared intent says not to loosen revoked-token checks. Where is session revocation enforced now?",
+      "channel": "session_resume",
+      "answer": {
+        "text": "Revocation is checked upstream in gateway middleware.",
+        "answered_by": "author-agent@demo",
+        "at": "2026-11-23T20:20:00.000Z",
+        "session_forked": true
+      },
+      "verdict": {
+        "status": "refuted",
+        "verifier_model": "cold-verifier",
+        "evidence": ["No revokedAt reference found in gateway middleware."]
+      }
+    }
+  ],
+  "coverage": {
+    "total": 3,
+    "explained": 1,
+    "collapsed": 1,
+    "unexplained": 1
+  }
+}
