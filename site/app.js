@@ -14,9 +14,7 @@
   const initialTheme =
     savedTheme === "light" || savedTheme === "dark"
       ? savedTheme
-      : window.matchMedia?.("(prefers-color-scheme: light)").matches
-        ? "light"
-        : "dark";
+      : "light";
   applyTheme(initialTheme);
 
   themeBtn?.addEventListener("click", () => {
