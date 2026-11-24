@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diffgloss — Explainability-First Code Review Ledger</title>
+  <meta name="description" content="Turn chaotic AI-authored git diffs into a verifiable explainability ledger with mechanical file:line citations, symmetric-proof review, and an interactive 3D-clear browser tour." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-floor"></div>
+  </div>
+
+  <nav class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#">
+        <span class="brand-gem" aria-hidden="true">◆</span>
+        <span class="brand-name">diffgloss</span>
+        <span class="brand-ver">v0.2.0</span>
+      </a>
+      <div class="nav-links">
+        <a href="#pipeline">Architecture</a>
+        <a href="#sandbox">Live Demo</a>
+        <a href="#features">Capabilities</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#quickstart">Quick Start</a>
+        <a class="nav-cta" href="https://github.com/atomsprout/diffgloss" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO WITH 3D INTERACTIVE DIFF-TO-GLOSS STAGE -->
+  <header class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <div class="pill-badge">
+          <span class="pulse-dot"></span>
+          Apache-2.0 · Zero Runtime Dependencies · Node 20+ &amp; Bun
+        </div>
+        <h1>
+          Stop guessing what<br />
+          <span class="gradient-text">AI-written diffs</span><br />
+          actually changed.
+        </h1>
+        <p class="hero-sub">
+          <strong>gloss</strong> <em>(noun)</em> — an interlinear annotation illuminating a manuscript.
+          <strong>Diffgloss</strong> turns any git diff or commit into a <strong>verifiable explainability ledger</strong>:
+          every hunk is mechanically accounted for as
+          <span class="tok-green">explained</span>,
+          <span class="tok-slate">collapsed</span>, or
+          <span class="tok-red">unexplained</span>.
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn-primary" href="#quickstart">Get Started in 30s</a>
+          <a class="btn-ghost" href="#sandbox">Try Interactive Ledger ↓</a>
+          <a class="btn-ghost" href="https://github.com/atomsprout/diffgloss/releases/tag/v0.2.0" target="_blank" rel="noopener">Release v0.2.0</a>
+        </div>
+
+        <div class="hero-stats">
+          <div class="stat-pill">
+            <span class="stat-val" data-count="100" data-suffix="%">100%</span>
+            <span class="stat-lbl">Coverage Invariant</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-val" data-count="100" data-suffix="%">100%</span>
+            <span class="stat-lbl">Citation Validity</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-val">$0.005</span>
+            <span class="stat-lbl">Per Full PR (DeepSeek)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D SPATIAL TRANSFORMATION STAGE -->
+      <div class="stage-wrap">
+        <div class="stage-toolbar">
+          <div class="mode-switch" role="tablist" aria-label="Diff view transformation">
+            <button class="mode-btn" data-stage-mode="raw" role="tab" aria-selected="false">Raw Diff Chaos</button>
+            <button class="mode-btn active" data-stage-mode="gloss" role="tab" aria-selected="true">✦ Diffgloss 3D Ledger</button>
+          </div>
+          <span class="stage-hint">Move cursor to tilt 3D layers</span>
+        </div>
+
+        <div class="stage-3d" id="stage-3d" data-mode="gloss">
+          <!-- Back layer: Raw Diff Plate -->
+          <div class="layer layer-diff">
+            <div class="plate-head">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <span class="mono">src/auth/session.ts · +14 −6</span>
+              <span class="scan-chip">AST Sub-Hunk Split</span>
+            </div>
+            <div class="scan-beam" aria-hidden="true"></div>
+            <pre class="code-plate"><code><span class="ln">12</span>  export async function touchSession(session) {
+<span class="ln">13</span>    const now = Date.now();
+<span class="ln del">14</span><span class="del">-   return session.expiresAt &gt; now;</span>
+<span class="ln add">15</span><span class="add">+   if (session.expiresAt &lt;= now) return false;</span>
+<span class="ln add">16</span><span class="add">+   session.expiresAt = now + SLIDING_TTL_MS;</span>
+<span class="ln add">17</span><span class="add">+   return true;</span>
+<span class="ln">18</span>  }
+<span class="ln">30</span>  export function verifySession(session) {
+<span class="ln del alert-line">31</span><span class="del alert-line">-   if (session.revokedAt !== null) {</span>
+<span class="ln del alert-line">32</span><span class="del alert-line">-     throw new Error("Session revoked");</span>
+<span class="ln del alert-line">33</span><span class="del alert-line">-   }</span>
+<span class="ln">34</span>    return session.expiresAt &gt; Date.now();
+<span class="ln">35</span>  }</code></pre>
+          </div>
+
+          <!-- Floating Top Layer: Coverage Ledger Bar -->
+          <div class="layer layer-ledger">
+            <div class="ledger-row">
+              <span class="mono strong">COVERAGE LEDGER</span>
+              <span class="ledger-eq mono">total(6) = 3 + 1 + 2</span>
+            </div>
+            <div class="ledger-bar">
+              <div class="seg seg-green" style="width:50%"></div>
+              <div class="seg seg-slate" style="width:17%"></div>
+              <div class="seg seg-red" style="width:33%"></div>
+            </div>
+            <div class="ledger-tags">
+              <span class="chip chip-green">● 3 explained</span>
+              <span class="chip chip-slate">● 1 collapsed</span>
+              <span class="chip chip-red">● 2 unexplained</span>
+            </div>
+          </div>
+
+          <!-- Floating Right Gloss Card: Verified What + Why -->
+          <div class="layer layer-gloss-ok">
+            <div class="gloss-head">
+              <span class="chip chip-green">citations_valid ✓</span>
+              <span class="chip chip-cyan">judge_passed ✓</span>
+            </div>
+            <p class="gloss-title"><code>touchSession</code> · L15–17</p>
+            <p class="gloss-body">Rejects expired sessions early, then extends <code>expiresAt</code> by <code>SLIDING_TTL_MS</code>.</p>
+            <div class="gloss-foot">
+              <span class="mono">Why: declared_intent</span>
+              <span class="cite-pill">session.ts:15-17</span>
+            </div>
+          </div>
+
+          <!-- Floating Bottom-Right Alert Card: Unexplained Guard Removal -->
+          <div class="layer layer-gloss-alert">
+            <div class="gloss-head">
+              <span class="chip chip-red">UNEXPLAINED</span>
+              <span class="chip chip-amber">safety_check_removed</span>
+            </div>
+            <p class="gloss-title"><code>verifySession</code> · L31–33</p>
+            <p class="gloss-body">Revoked-session guard deleted despite intent saying <em>"Do NOT weaken revoked checks."</em></p>
+            <div class="gloss-foot">
+              <span class="mono">Cold Verifier:</span>
+              <span class="chip chip-red">refuted ✗</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ANIMATED 5-STAGE ARCHITECTURE PIPELINE -->
+  <section id="pipeline" class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">GLASS-BOX ARCHITECTURE</span>
+        <h2>Five stages from raw patch to verifiable truth</h2>
+        <p>Click any stage to inspect how Diffgloss balances sub-second deterministic filtering with blind-first verification and strict author/reviewer isolation.</p>
+      </div>
+
+      <div class="pipeline-visual">
+        <svg class="pipeline-svg" viewBox="0 0 1100 120" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="pipeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="30%" stop-color="#3fb950" />
+              <stop offset="55%" stop-color="#a855f7" />
+              <stop offset="80%" stop-color="#f59e0b" />
+              <stop offset="100%" stop-color="#f85149" />
+            </linearGradient>
+          </defs>
+          <path d="M 40 60 C 220 20, 320 100, 550 60 C 780 20, 880 100, 1060 60" fill="none" stroke="rgba(148,163,184,0.2)" stroke-width="3" />
+          <path class="pipe-pulse" d="M 40 60 C 220 20, 320 100, 550 60 C 780 20, 880 100, 1060 60" fill="none" stroke="url(#pipeGrad)" stroke-width="3.5" stroke-linecap="round" />
+        </svg>
+
+        <div class="pipe-nodes" id="pipe-nodes">
+          <button class="pipe-node active" data-stage="0">
+            <span class="node-num c-blue">01</span>
+            <strong>Ingest &amp; AST Split</strong>
+            <span>&lt; 1s deterministic</span>
+          </button>
+          <button class="pipe-node" data-stage="1">
+            <span class="node-num c-purple">02</span>
+            <strong>4-Tier Provenance</strong>
+            <span>Hooks · Sessions · Redact</span>
+          </button>
+          <button class="pipe-node" data-stage="2">
+            <span class="node-num c-amber">03</span>
+            <strong>Blind-First Explain</strong>
+            <span>Citations + Judge</span>
+          </button>
+          <button class="pipe-node" data-stage="3">
+            <span class="node-num c-red">04</span>
+            <strong>Symmetric Proof</strong>
+            <span>Isolated Find &amp; Verify</span>
+          </button>
+          <button class="pipe-node" data-stage="4">
+            <span class="node-num c-green">05</span>
+            <strong>Ledger Surfaces</strong>
+            <span>Browser · PR · MCP</span>
+          </button>
+        </div>
+
+        <div class="pipe-detail" id="pipe-detail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE INTERACTIVE MINI-LEDGER DEMO -->
+  <section id="sandbox" class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">INTERACTIVE PREVIEW</span>
+        <h2>Experience the Coverage Ledger live</h2>
+        <p>Switch real AI-authored diff scenarios, click <code>file:line</code> citations to jump into code, expand Symmetric Proof dismissals, or toggle Self-Check mode.</p>
+      </div>
+
+      <div class="demo-shell">
+        <div class="demo-topbar">
+          <div class="demo-tabs" id="demo-tabs">
+            <button class="demo-tab active" data-demo="0">1. Auth Guard Removed</button>
+            <button class="demo-tab" data-demo="1">2. SQL Injection + Symmetric Proof</button>
+            <button class="demo-tab" data-demo="2">3. Weakened Test + Silent Catch</button>
+          </div>
+          <div class="demo-controls">
+            <button class="mini-btn" id="demo-selfcheck">Self-Check: Off</button>
+          </div>
+        </div>
+        <div class="demo-body" id="demo-body"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3D TILT FEATURE GRID -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">ENGINEERED FOR TRUST</span>
+        <h2>Built from hard empirical lessons</h2>
+        <p>Every mechanism in Diffgloss directly counters a documented failure mode of AI code review: unfaithful prose, comment fatigue, and author-anchoring bias.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="tilt-card">
+          <div class="feat-icon c-green">✓</div>
+          <h3>Mechanical Citation Grounding</h3>
+          <p>Separates structural grounding (<code>citations_valid</code>: exact line bounds &amp; verbatim symbols) from semantic verification (<code>judge_passed</code>). Failed citations trigger 1x repair, then honest demotion to <code>unexplained</code>.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-blue">⑂</div>
+          <h3>Multi-Language AST Sub-Hunks</h3>
+          <p>Lexer-aware scope tracking across TypeScript, JavaScript, Python, Go, Rust, Java &amp; C++ splits oversized hunks along real method/function boundaries so sneaky edits can't hide inside a 150-line diff.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-purple">⚙</div>
+          <h3>Zero-Env-Var Browser Workbench</h3>
+          <p>Run <code>diffgloss ui</code> once. Switch any local git repo or click any commit in history, pick from 10 one-click model presets (DeepSeek, Claude, OpenAI, Gemini, OpenRouter, Ollama…), test connection, and run Explain in-page.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-red">⚖</div>
+          <h3>Symmetric-Proof Review</h3>
+          <p>Inspired by Google Sashiko: parallel narrow specialists output both verified bugs and <strong>Ruled-Out Concerns</strong> with concrete code proof. Shaky self-dismissals are automatically escalated to cold verification.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-amber">⛓</div>
+          <h3>4-Tier Provenance &amp; Redaction</h3>
+          <p>Captures write-time Claude Code hooks (<code>PostToolUse</code> + <code>Stop</code> gate), auto-discovers local Claude/Codex transcripts, reads Git AI / Agent Trace / Entire, and strips API keys, JWTs &amp; PEM blocks before persistence.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-cyan">⌘</div>
+          <h3>MCP, SARIF &amp; GitHub PR Sync</h3>
+          <p>Runs as a native MCP stdio server for coding agents, imports/exports SARIF 2.1.0 &amp; reviewdog <code>rdjsonl</code>, and syncs sticky ledger comments with fingerprinted inline reconciliation on GitHub PRs.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- GOLDEN BENCHMARK SCORECARD -->
+  <section id="benchmarks" class="section">
+    <div class="container">
+      <div class="bench-card">
+        <div class="bench-left">
+          <span class="eyebrow">VERIFIED ON LIVE MODELS</span>
+          <h2>12-Case Multi-Language Golden Eval</h2>
+          <p>Tested across TypeScript, Python, Go, Rust, SQL migrations, GitHub Actions CI, React UI, leaked private keys, cross-file moves, nested classes, and SQL injection.</p>
+          <div class="bench-cmd mono">node dist/cli.js eval --provider deepseek --model deepseek-chat</div>
+        </div>
+        <div class="bench-metrics">
+          <div class="metric-box">
+            <span class="metric-big tok-green">12 / 12</span>
+            <span class="metric-lbl">Golden Cases Passed</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-big tok-cyan">100.0%</span>
+            <span class="metric-lbl">Coverage Invariant</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-big tok-green">100.0%</span>
+            <span class="metric-lbl">Citation Validity</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-big tok-amber">0</span>
+            <span class="metric-lbl">False Mechanical Hides</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-big tok-purple">$0.0078</span>
+            <span class="metric-lbl">Total Cost (12 Cases)</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-big">25 / 25</span>
+            <span class="metric-lbl">Unit &amp; Integration Tests</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICK START -->
+  <section id="quickstart" class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">30-SECOND SETUP</span>
+        <h2>Start reviewing with clarity</h2>
+        <p>Zero runtime dependencies. Works out of the box on Node 20+ and Bun 1.2+.</p>
+      </div>
+
+      <div class="code-cards">
+        <div class="cmd-card">
+          <div class="cmd-head">
+            <span>1. Launch Local Browser Workbench (No Env Vars Needed)</span>
+            <button class="copy-btn" data-copy="git clone https://github.com/atomsprout/diffgloss.git && cd diffgloss && bun install && bun run build && node dist/cli.js ui">Copy</button>
+          </div>
+          <pre><code>git clone https://github.com/atomsprout/diffgloss.git
+cd diffgloss
+bun install &amp;&amp; bun run build
+
+# Opens interactive browser workbench on http://127.0.0.1:4317
+# Click "📂 Repo / Commit" to pick any repo or commit, and "⚙ Models" to configure keys!
+node dist/cli.js ui</code></pre>
+        </div>
+
+        <div class="cmd-card">
+          <div class="cmd-head">
+            <span>2. CI Gate, SARIF &amp; MCP Server</span>
+            <button class="copy-btn" data-copy="node dist/cli.js explain main..HEAD --provider deepseek --judge --review --sarif-out .diffgloss/out.sarif && node dist/cli.js validate .diffgloss/ledger.json --max-unexplained 0">Copy</button>
+          </div>
+          <pre><code># Full blind-first explain + semantic judge + symmetric-proof review
+node dist/cli.js explain main..HEAD --provider deepseek --judge --review \
+  --sarif-out .diffgloss/out.sarif
+
+# Enforce zero unexplained hunks in CI (exit code 2 on violation)
+node dist/cli.js validate .diffgloss/ledger.json --max-unexplained 0
+
+# Start MCP stdio server for Claude Code / Codex / Cursor
+node dist/cli.js mcp</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <span class="brand-gem">◆</span> <strong>Diffgloss</strong> · Apache-2.0 Open Source
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/atomsprout/diffgloss" target="_blank" rel="noopener">Repository</a>
+        <a href="https://github.com/atomsprout/diffgloss/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture</a>
+        <a href="https://github.com/atomsprout/diffgloss/blob/main/schemas/explanation.schema.json" target="_blank" rel="noopener">JSON Schema</a>
+        <a href="https://github.com/atomsprout/diffgloss/releases" target="_blank" rel="noopener">Releases</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

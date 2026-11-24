@@ -6,10 +6,15 @@
 </p>
 
 <p align="center">
+  <a href="https://atomsprout.github.io/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.github.io%2Fdiffgloss-38bdf8.svg" alt="GitHub Pages" /></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/runtime-Node%2020%2B%20%7C%20Bun%201.2%2B-3fb950.svg" alt="Runtime: Node 20+ | Bun 1.2+" />
   <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-8957e5.svg" alt="Zero Runtime Dependencies" />
   <img src="https://img.shields.io/badge/schema-diffgloss.explanation%2Fv0-d29922.svg" alt="Schema v0" />
+</p>
+
+<p align="center">
+  <strong><a href="https://atomsprout.github.io/diffgloss/">✦ Explore the Interactive 3D Site &amp; Live Demo ↗</a></strong>
 </p>
 
 ---
@@ -88,24 +93,59 @@ flowchart TB
   R3 --> O1
 ```
 
-### Independence & Evidence Flow
+### Blind-First Independence, Q&A & Symmetric-Proof Sequence
 
 ```mermaid
-flowchart LR
-  classDef blind fill:#1f6feb,stroke:#58a6ff,color:#ffffff
-  classDef gate fill:#d29922,stroke:#f2cc60,color:#0d1117
-  classDef ok fill:#238636,stroke:#3fb950,color:#ffffff
-  classDef warn fill:#da3633,stroke:#f85149,color:#ffffff
-  classDef qa fill:#8957e5,stroke:#bc8cff,color:#ffffff
+sequenceDiagram
+  autonumber
+  actor Dev as Reviewer / Workbench UI
+  participant Pre as Deterministic Preproc & AST
+  participant Exp as Blind-First Explainer
+  participant Cite as Mechanical Citation Verifier
+  participant Auth as Author Session (Forked Read-Only)
+  participant Cold as Cold-Start Verifier
+  participant Spec as Isolated Bug Specialists
 
-  D["Diff + Declared Intent"]:::blind --> B["Blind-First Analysis"]:::blind
-  B --> C{"Citations Valid &<br/>Why Evidenced?"}:::gate
-  C -- "Yes" --> OK["status: explained<br/>(citations_valid + semantic_grounding)"]:::ok
-  C -- "No" --> UN["status: unexplained<br/>(Trigger Clarifying Question)"]:::warn
-  UN --> Q["Ask Human or<br/>Forked Agent Session"]:::qa
-  Q --> V{"Cold-Start<br/>Answer Verifier"}:::gate
-  V -- "confirmed" --> OK
-  V -- "refuted / unverifiable" --> UN
+  Dev->>Pre: Load Repo Diff or Commit
+  Pre->>Pre: Skip secrets, AST sub-hunk split, collapse noise, run integrity rules
+  Pre->>Exp: Active hunks + Base-branch rules + Declared intent
+  Exp->>Cite: Proposed groups + What(file:line) + Why(source)
+  Cite-->>Exp: 1x auto-repair if citation/symbol invalid
+  alt Citations valid & Why evidenced
+    Cite->>Dev: Mark status = explained
+  else Missing Why / Guard removed / Repair failed
+    Cite->>Dev: Mark status = unexplained + Clarifying Question
+    Dev->>Auth: Ask triggered question (--fork-session, read-only)
+    Auth-->>Cold: Unverified author claim
+    Cold->>Dev: Verdict: confirmed | refuted | unverifiable
+  end
+  Note over Pre,Spec: Author answers NEVER enter bug-finding specialists
+  Pre->>Spec: Sanitized hunks + Scoped custom rules
+  Spec->>Cold: Candidate bugs + Ruled-Out Concerns (with code proof)
+  Cold->>Dev: Verified findings + Glass-box ruled_out ledger
+```
+
+### Hunk Coverage & Provenance State Machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> ParsedHunk: git diff / commit
+  ParsedHunk --> Skipped: secret_suspected | binary
+  ParsedHunk --> SubHunk: AST scope split (>40 changed lines)
+  SubHunk --> Collapsed: lockfile / generated / whitespace / move
+  SubHunk --> Unexplained: substantive / test / config (default honest state)
+
+  Unexplained --> CitationCheck: Blind-first LLM explain
+  CitationCheck --> Explained: citations_valid && semantic_judge != failed
+  CitationCheck --> Unexplained: citation repair failed (claim_mismatch)
+
+  Unexplained --> QAVerifier: Triggered clarifying question answered
+  QAVerifier --> Explained: verdict = confirmed && citations_valid
+  QAVerifier --> Unexplained: verdict = refuted | unverifiable (pinned high)
+
+  Collapsed --> [*]: 1-click expandable
+  Explained --> [*]: Covered in ledger
+  Unexplained --> [*]: Surfaced & CI-gateable
 ```
 
 > **Key rule:** Author answers from Q&A enter only the `Why` provenance column and are **never** fed to the bug-finding specialists, preventing author self-defense from anchoring defect detection.
@@ -258,6 +298,7 @@ diffgloss/
 │   ├── render/                # Offline interactive HTML UI, local HTTP preview server, Markdown renderer
 │   └── eval/harness.ts        # Golden evaluation runner
 ├── schemas/                   # diffgloss.explanation/v0 JSON Schema
+├── site/                      # Interactive 3D GitHub Pages landing site
 ├── evals/golden/              # 12 multi-language golden diff fixtures
 ├── examples/                  # Sample ledger, diffgloss.yaml, structured rule example
 ├── skills/diffgloss/          # Ready-to-use coding agent skill (SKILL.md)
