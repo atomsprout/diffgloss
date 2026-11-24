@@ -437,6 +437,93 @@ export function renderHtmlReport(
       border-radius: 10px;
     }
     .kbd-hint { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.58);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-panel {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 620px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 18px 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .modal-header h2 { margin: 0; font-size: 16px; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+    .field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .field input, .field select, .field textarea {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 13px;
+      font-family: var(--font-sans);
+    }
+    .field textarea { resize: vertical; min-height: 58px; }
+    .preset-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .preset-chip {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .preset-chip.active, .preset-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .model-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+    .modal-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .btn-primary:hover { opacity: 0.92; }
+    .status-msg {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+    .status-msg.ok { display: block; background: var(--green-bg); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+    .status-msg.err { display: block; background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+    .status-msg.info { display: block; background: var(--slate-bg); color: var(--text); border: 1px solid var(--border); }
+    .check-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 6px 0 10px; font-size: 12px; }
+    .check-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -461,6 +548,7 @@ export function renderHtmlReport(
         <button class="btn" id="split-toggle" title="Toggle Unified / Side-by-Side (s)">Unified</button>
         <button class="btn" id="self-check-toggle" title="Hide explanations on high-risk hunks until revealed">Self-Check: Off</button>
         <span class="badge b-slate" id="understood-counter">Understood 0/0</span>
+        <button class="btn" id="settings-btn" title="Configure any LLM provider, API key & re-run in page">⚙ Models</button>
         <button class="btn" id="download-json-btn">Export JSON</button>
         <button class="btn" id="theme-toggle">Theme</button>
       </div>
@@ -475,6 +563,108 @@ export function renderHtmlReport(
   <div class="layout">
     <aside id="sidebar"></aside>
     <main id="main"></main>
+  </div>
+
+  <div class="modal-backdrop" id="settings-modal">
+    <div class="modal-panel" role="dialog" aria-label="Model Settings">
+      <div class="modal-header">
+        <h2>⚙ Models &amp; In-Page Configuration</h2>
+        <button class="btn" id="settings-close">Close</button>
+      </div>
+      <div id="settings-static-note" class="status-msg info" style="margin-bottom:10px"></div>
+      <div id="settings-live-body">
+        <div class="field">
+          <label>Quick Provider Presets (1-click)</label>
+          <div class="preset-chips" id="preset-chips"></div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="cfg-provider">Protocol Dialect</label>
+            <select id="cfg-provider">
+              <option value="deepseek">deepseek</option>
+              <option value="openai-chat">openai-chat (OpenAI-Compatible)</option>
+              <option value="openai">openai (Responses API)</option>
+              <option value="anthropic">anthropic (Messages + Cache)</option>
+              <option value="google">google (Gemini)</option>
+              <option value="mock">mock (Offline)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cfg-model">Model Name (any model ID)</label>
+            <input id="cfg-model" type="text" placeholder="e.g. deepseek-chat, gpt-5.1, claude-sonnet-4-5" />
+            <div class="model-chips" id="model-chips"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cfg-base-url">Base URL</label>
+          <input id="cfg-base-url" type="text" placeholder="https://api.deepseek.com/v1" />
+        </div>
+        <div class="field">
+          <label for="cfg-api-key">API Key <span id="cfg-key-status" style="text-transform:none"></span></label>
+          <input id="cfg-api-key" type="password" autocomplete="off" placeholder="Paste API key (saved locally to ~/.config/diffgloss/settings.json, chmod 600)" />
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="cfg-budget">Budget Cap ($ USD)</label>
+            <input id="cfg-budget" type="number" step="0.1" min="0" value="1.5" />
+          </div>
+          <div class="field">
+            <label for="cfg-effort">Effort Level</label>
+            <select id="cfg-effort">
+              <option value="quick">quick</option>
+              <option value="standard">standard</option>
+              <option value="deep">deep</option>
+            </select>
+          </div>
+        </div>
+        <div class="check-row">
+          <label><input type="checkbox" id="cfg-enable-judge" checked /> Cold-start semantic grounding judge</label>
+          <label><input type="checkbox" id="cfg-enable-review" checked /> Symmetric-proof bug review (ruled-out proof)</label>
+        </div>
+        <div class="field">
+          <label for="cfg-intent">Declared Intent (Prompt / Plan / PR Description)</label>
+          <textarea id="cfg-intent" placeholder="Describe what this diff is supposed to achieve..."></textarea>
+        </div>
+        <details style="margin-bottom:8px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--muted)">Optional: Cross-Model Judge / Verifier (different vendor)</summary>
+          <div class="form-grid" style="margin-top:8px">
+            <div class="field">
+              <label for="cfg-judge-provider">Judge Dialect</label>
+              <select id="cfg-judge-provider">
+                <option value="">(Same as primary)</option>
+                <option value="anthropic">anthropic</option>
+                <option value="openai">openai</option>
+                <option value="openai-chat">openai-chat</option>
+                <option value="deepseek">deepseek</option>
+                <option value="google">google</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="cfg-judge-model">Judge Model</label>
+              <input id="cfg-judge-model" type="text" placeholder="e.g. claude-sonnet-4-5" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="cfg-judge-base-url">Judge Base URL</label>
+              <input id="cfg-judge-base-url" type="text" placeholder="optional custom endpoint" />
+            </div>
+            <div class="field">
+              <label for="cfg-judge-api-key">Judge API Key <span id="cfg-judge-key-status" style="text-transform:none"></span></label>
+              <input id="cfg-judge-api-key" type="password" autocomplete="off" placeholder="leave blank to reuse primary" />
+            </div>
+          </div>
+        </details>
+        <div class="modal-actions">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="cfg-test-btn">Test Connection</button>
+            <button class="btn" id="cfg-save-btn">Save Settings</button>
+          </div>
+          <button class="btn btn-primary" id="cfg-run-btn">▶ Run Explain Now</button>
+        </div>
+        <div id="cfg-status" class="status-msg"></div>
+      </div>
+    </div>
   </div>
 
   <script id="diffgloss-data" type="application/json">${embeddedJson}</script>
@@ -1053,6 +1243,192 @@ export function renderHtmlReport(
       document.getElementById("theme-toggle").addEventListener("click", () => {
         const cur = document.documentElement.getAttribute("data-theme");
         document.documentElement.setAttribute("data-theme", cur === "light" ? "dark" : "light");
+      });
+
+      // --- In-Page Model Settings Modal ---
+      let presetsCache = [];
+      let selectedPresetId = "deepseek";
+      const modal = document.getElementById("settings-modal");
+      const statusEl = document.getElementById("cfg-status");
+      const staticNote = document.getElementById("settings-static-note");
+      const liveBody = document.getElementById("settings-live-body");
+
+      function setStatus(kind, msg) {
+        statusEl.className = "status-msg " + kind;
+        statusEl.textContent = msg;
+      }
+
+      function renderPresetChips() {
+        const box = document.getElementById("preset-chips");
+        box.innerHTML = presetsCache.map((p) =>
+          '<button type="button" class="preset-chip' + (p.id === selectedPresetId ? " active" : "") + '" data-preset="' + esc(p.id) + '">' + esc(p.label) + "</button>"
+        ).join("");
+        const active = presetsCache.find((p) => p.id === selectedPresetId);
+        const mBox = document.getElementById("model-chips");
+        mBox.innerHTML = (active?.suggested_models || []).map((m) =>
+          '<button type="button" class="preset-chip" data-suggest-model="' + esc(m) + '">' + esc(m) + "</button>"
+        ).join("");
+      }
+
+      function collectSettingsPayload() {
+        return {
+          preset: selectedPresetId,
+          provider: document.getElementById("cfg-provider").value,
+          model: document.getElementById("cfg-model").value.trim(),
+          base_url: document.getElementById("cfg-base-url").value.trim(),
+          api_key: document.getElementById("cfg-api-key").value.trim(),
+          budget_usd: Number(document.getElementById("cfg-budget").value || 1.5),
+          effort: document.getElementById("cfg-effort").value,
+          enable_judge: document.getElementById("cfg-enable-judge").checked,
+          enable_review: document.getElementById("cfg-enable-review").checked,
+          judge_provider: document.getElementById("cfg-judge-provider").value,
+          judge_model: document.getElementById("cfg-judge-model").value.trim(),
+          judge_base_url: document.getElementById("cfg-judge-base-url").value.trim(),
+          judge_api_key: document.getElementById("cfg-judge-api-key").value.trim(),
+        };
+      }
+
+      function populateSettingsForm(s) {
+        selectedPresetId = s.preset || "deepseek";
+        document.getElementById("cfg-provider").value = s.provider || "deepseek";
+        document.getElementById("cfg-model").value = s.model || "";
+        document.getElementById("cfg-base-url").value = s.base_url || "";
+        document.getElementById("cfg-api-key").value = "";
+        document.getElementById("cfg-key-status").textContent = s.has_api_key
+          ? "(Saved: " + s.api_key_masked + ")"
+          : "(Not saved yet)";
+        document.getElementById("cfg-budget").value = s.budget_usd ?? 1.5;
+        document.getElementById("cfg-effort").value = s.effort || "standard";
+        document.getElementById("cfg-enable-judge").checked = Boolean(s.enable_judge);
+        document.getElementById("cfg-enable-review").checked = Boolean(s.enable_review);
+        document.getElementById("cfg-intent").value = ledger.overview.declared_intent || "";
+        document.getElementById("cfg-judge-provider").value = s.judge_provider || "";
+        document.getElementById("cfg-judge-model").value = s.judge_model || "";
+        document.getElementById("cfg-judge-base-url").value = s.judge_base_url || "";
+        document.getElementById("cfg-judge-api-key").value = "";
+        document.getElementById("cfg-judge-key-status").textContent = s.has_judge_api_key
+          ? "(Saved: " + s.judge_api_key_masked + ")"
+          : "";
+        renderPresetChips();
+      }
+
+      document.getElementById("settings-btn").addEventListener("click", async () => {
+        modal.classList.add("open");
+        statusEl.className = "status-msg";
+        if (!LIVE_SERVER) {
+          staticNote.style.display = "block";
+          staticNote.textContent = "Static offline HTML mode: run 'diffgloss ui' or 'diffgloss inspect --serve' to configure API keys and re-run explanations directly in the browser.";
+          liveBody.style.display = "none";
+          return;
+        }
+        staticNote.style.display = "none";
+        liveBody.style.display = "block";
+        try {
+          const res = await fetch("/api/settings");
+          const data = await res.json();
+          presetsCache = data.presets || [];
+          populateSettingsForm(data.settings || {});
+        } catch (err) {
+          setStatus("err", "Failed to load settings: " + err.message);
+        }
+      });
+
+      document.getElementById("settings-close").addEventListener("click", () => modal.classList.remove("open"));
+      modal.addEventListener("click", (ev) => {
+        if (ev.target === modal) modal.classList.remove("open");
+      });
+
+      document.getElementById("preset-chips").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-preset]");
+        if (!btn) return;
+        const p = presetsCache.find((x) => x.id === btn.getAttribute("data-preset"));
+        if (!p) return;
+        selectedPresetId = p.id;
+        document.getElementById("cfg-provider").value = p.dialect;
+        document.getElementById("cfg-base-url").value = p.base_url;
+        document.getElementById("cfg-model").value = p.default_model;
+        document.getElementById("cfg-api-key").placeholder = p.key_placeholder || "API Key";
+        renderPresetChips();
+      });
+
+      document.getElementById("model-chips").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-suggest-model]");
+        if (!btn) return;
+        document.getElementById("cfg-model").value = btn.getAttribute("data-suggest-model");
+      });
+
+      document.getElementById("cfg-save-btn").addEventListener("click", async () => {
+        setStatus("info", "Saving settings locally (~/.config/diffgloss/settings.json)...");
+        try {
+          const res = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(collectSettingsPayload()),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            populateSettingsForm(data.settings);
+            setStatus("ok", "Saved to " + data.settings.settings_path + " (chmod 600). No environment variables needed!");
+          } else {
+            setStatus("err", data.error || "Save failed");
+          }
+        } catch (err) {
+          setStatus("err", err.message);
+        }
+      });
+
+      document.getElementById("cfg-test-btn").addEventListener("click", async () => {
+        setStatus("info", "Testing connection...");
+        try {
+          const res = await fetch("/api/settings/test", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(collectSettingsPayload()),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            setStatus("ok", "Connected to " + data.provider + "/" + data.model + " in " + data.latency_ms + "ms (" + data.reply + ")");
+          } else {
+            setStatus("err", "Connection failed (" + data.latency_ms + "ms): " + data.error);
+          }
+        } catch (err) {
+          setStatus("err", err.message);
+        }
+      });
+
+      document.getElementById("cfg-run-btn").addEventListener("click", async () => {
+        const btn = document.getElementById("cfg-run-btn");
+        btn.disabled = true;
+        btn.textContent = "Running Explain...";
+        setStatus("info", "Saving settings & running Diffgloss explanation pipeline...");
+        try {
+          const payload = collectSettingsPayload();
+          const res = await fetch("/api/explain", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              settings: payload,
+              declared_intent: document.getElementById("cfg-intent").value.trim(),
+              enable_judge: payload.enable_judge,
+              enable_review: payload.enable_review,
+            }),
+          });
+          const data = await res.json();
+          if (data.ok && data.ledger) {
+            ledger = data.ledger;
+            renderHeader();
+            renderBody();
+            setStatus("ok", "Done! Coverage: " + ledger.coverage.explained + " explained / " + ledger.coverage.collapsed + " collapsed / " + ledger.coverage.unexplained + " unexplained.");
+            setTimeout(() => modal.classList.remove("open"), 900);
+          } else {
+            setStatus("err", data.error || "Explain failed");
+          }
+        } catch (err) {
+          setStatus("err", err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Run Explain Now";
+        }
       });
 
       document.addEventListener("keydown", (ev) => {

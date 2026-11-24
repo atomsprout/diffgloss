@@ -1,16 +1,38 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { discoverRuleDocs, loadConfig } from "../config/loader.ts";
+import {
+  loadUserSettings,
+  PROVIDER_PRESETS,
+  saveUserSettings,
+  toMaskedUserSettings,
+  type UserSettings,
+} from "../config/user-settings.ts";
+import { createLLMClient } from "../llm/providers.ts";
+import { explainLedger } from "../pipeline/explainer.ts";
+import { runSymmetricProofReview } from "../pipeline/reviewer.ts";
 import { recordAndVerifyAnswer } from "../provenance/questioner.ts";
-import type { DiffglossConfig, ExplanationLedger } from "../schema/types.ts";
+import {
+  evaluateStructuredRules,
+  loadStructuredRules,
+} from "../rules/engine.ts";
+import type {
+  DiffglossConfig,
+  EffortLevel,
+  ExplanationLedger,
+  ProviderDialect,
+} from "../schema/types.ts";
 import { renderHtmlReport } from "./html.ts";
 
 export interface PreviewServerOptions {
   port: number;
+  cwd?: string;
   ledger: ExplanationLedger;
   jsonOutPath?: string;
   htmlOutPath?: string;
   config?: DiffglossConfig;
+  homeDir?: string;
 }
 
 function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
@@ -44,18 +66,75 @@ function persistLedger(
   }
   if (htmlOutPath) {
     mkdirSync(path.dirname(htmlOutPath), { recursive: true });
-    writeFileSync(htmlOutPath, renderHtmlReport(ledger, { liveServer: true }), "utf8");
+    // Never embed liveServer=true or keys in static HTML file on disk
+    writeFileSync(htmlOutPath, renderHtmlReport(ledger, { liveServer: false }), "utf8");
   }
 }
 
+function parseSettingsPatch(body: Record<string, unknown>): Partial<UserSettings> {
+  const patch: Partial<UserSettings> = {};
+  if (typeof body.preset === "string") patch.preset = body.preset;
+  if (typeof body.provider === "string") patch.provider = body.provider as ProviderDialect;
+  if (typeof body.model === "string") patch.model = body.model.trim();
+  if (typeof body.base_url === "string") patch.base_url = body.base_url.trim();
+  if (typeof body.api_key === "string" && body.api_key.trim()) {
+    patch.api_key = body.api_key.trim();
+  } else if (body.clear_api_key === true) {
+    (patch as Record<string, unknown>).api_key = null;
+  }
+  if (typeof body.judge_provider === "string") {
+    patch.judge_provider = body.judge_provider
+      ? (body.judge_provider as ProviderDialect)
+      : (null as unknown as ProviderDialect);
+  }
+  if (typeof body.judge_model === "string") {
+    patch.judge_model = body.judge_model.trim() || (null as unknown as string);
+  }
+  if (typeof body.judge_base_url === "string") {
+    patch.judge_base_url =
+      body.judge_base_url.trim() || (null as unknown as string);
+  }
+  if (typeof body.judge_api_key === "string" && body.judge_api_key.trim()) {
+    patch.judge_api_key = body.judge_api_key.trim();
+  } else if (body.clear_judge_api_key === true) {
+    (patch as Record<string, unknown>).judge_api_key = null;
+  }
+  if (typeof body.effort === "string") patch.effort = body.effort as EffortLevel;
+  if (typeof body.budget_usd === "number" && Number.isFinite(body.budget_usd)) {
+    patch.budget_usd = body.budget_usd;
+  }
+  if (typeof body.enable_judge === "boolean") patch.enable_judge = body.enable_judge;
+  if (typeof body.enable_review === "boolean") patch.enable_review = body.enable_review;
+  return patch;
+}
+
 export function startPreviewServer(options: PreviewServerOptions): http.Server {
-  const { port, ledger, jsonOutPath, htmlOutPath, config } = options;
+  const cwd = options.cwd ?? process.cwd();
+  const { port, jsonOutPath, htmlOutPath, homeDir } = options;
+  let currentLedger = options.ledger;
+
+  const getEffectiveConfig = (): DiffglossConfig => {
+    const saved = loadUserSettings(homeDir);
+    return loadConfig(cwd, {
+      ...(options.config ?? {}),
+      ...(saved.provider ? { provider: saved.provider } : {}),
+      ...(saved.model ? { model: saved.model } : {}),
+      ...(saved.base_url ? { base_url: saved.base_url } : {}),
+      ...(saved.api_key ? { api_key: saved.api_key } : {}),
+      ...(saved.judge_provider ? { judge_provider: saved.judge_provider } : {}),
+      ...(saved.judge_model ? { judge_model: saved.judge_model } : {}),
+      ...(saved.judge_base_url ? { judge_base_url: saved.judge_base_url } : {}),
+      ...(saved.judge_api_key ? { judge_api_key: saved.judge_api_key } : {}),
+      ...(saved.effort ? { effort: saved.effort } : {}),
+      ...(saved.budget_usd !== undefined ? { budget_usd: saved.budget_usd } : {}),
+    });
+  };
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
 
     if (req.method === "GET" && url.pathname === "/") {
-      const html = renderHtmlReport(ledger, { liveServer: true });
+      const html = renderHtmlReport(currentLedger, { liveServer: true });
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(html);
       return;
@@ -63,7 +142,185 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
 
     if (req.method === "GET" && url.pathname === "/api/ledger") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify(ledger, null, 2));
+      res.end(JSON.stringify(currentLedger, null, 2));
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/settings") {
+      const saved = loadUserSettings(homeDir);
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(
+        JSON.stringify({
+          settings: toMaskedUserSettings(saved, homeDir),
+          presets: PROVIDER_PRESETS,
+        }),
+      );
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/settings") {
+      try {
+        const body = await readJsonBody(req);
+        const saved = saveUserSettings(parseSettingsPatch(body), homeDir);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            settings: toMaskedUserSettings(saved, homeDir),
+          }),
+        );
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/settings/test") {
+      const start = Date.now();
+      try {
+        const body = await readJsonBody(req);
+        const saved = loadUserSettings(homeDir);
+        const provider =
+          (typeof body.provider === "string" && body.provider
+            ? (body.provider as ProviderDialect)
+            : saved.provider) ?? "deepseek";
+        const model =
+          (typeof body.model === "string" && body.model.trim()
+            ? body.model.trim()
+            : saved.model) ?? "deepseek-chat";
+        const baseUrl =
+          typeof body.base_url === "string" && body.base_url.trim()
+            ? body.base_url.trim()
+            : saved.base_url;
+        const apiKey =
+          typeof body.api_key === "string" && body.api_key.trim()
+            ? body.api_key.trim()
+            : saved.api_key;
+
+        const client = createLLMClient({ provider, model, baseUrl, apiKey });
+        const pong = await client.complete({
+          system: "Reply with exactly OK.",
+          messages: [{ role: "user", content: "Ping" }],
+          maxTokens: 16,
+          temperature: 0,
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            provider: client.provider,
+            model: client.model,
+            latency_ms: Date.now() - start,
+            reply: pong.text.trim().slice(0, 60),
+          }),
+        );
+      } catch (err) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            latency_ms: Date.now() - start,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/explain") {
+      try {
+        const body = await readJsonBody(req);
+        // Optionally persist settings updates sent together with Run Explain
+        if (body.settings && typeof body.settings === "object") {
+          saveUserSettings(
+            parseSettingsPatch(body.settings as Record<string, unknown>),
+            homeDir,
+          );
+        }
+        const saved = loadUserSettings(homeDir);
+        const cfg = getEffectiveConfig();
+
+        const intentText =
+          typeof body.declared_intent === "string"
+            ? body.declared_intent.trim()
+            : currentLedger.overview.declared_intent;
+        const workingLedger: ExplanationLedger = {
+          ...structuredClone(currentLedger),
+          overview: {
+            ...currentLedger.overview,
+            declared_intent: intentText || undefined,
+            declared_intent_ref: intentText
+              ? currentLedger.overview.declared_intent_ref === "none"
+                ? "prompt"
+                : currentLedger.overview.declared_intent_ref ?? "prompt"
+              : "none",
+          },
+        };
+
+        // Reset prior LLM explanations so a fresh model run re-evaluates cleanly
+        for (const h of workingLedger.hunks) {
+          if (h.status !== "collapsed") {
+            h.status = "unexplained";
+            delete h.what;
+          }
+        }
+
+        const baseRef = workingLedger.source?.base_ref;
+        const changedPaths = [...new Set(workingLedger.hunks.map((h) => h.path))];
+        const ruleDocs = discoverRuleDocs(cwd, changedPaths, {
+          baseRef,
+          rulesFromBase: cfg.rules_from_base,
+        });
+        const runJudge =
+          typeof body.enable_judge === "boolean"
+            ? body.enable_judge
+            : saved.enable_judge ?? cfg.effort === "deep";
+        const runReview =
+          typeof body.enable_review === "boolean"
+            ? body.enable_review
+            : saved.enable_review ?? false;
+
+        let updated = await explainLedger(workingLedger, {
+          cwd,
+          config: cfg,
+          ruleDocs,
+          runJudge,
+        });
+
+        if (runReview) {
+          const rules = loadStructuredRules(cwd, {
+            baseRef,
+            rulesFromBase: cfg.rules_from_base,
+          });
+          const ruleEval = evaluateStructuredRules(rules, updated.hunks);
+          updated = await runSymmetricProofReview(updated, {
+            config: cfg,
+            scopedLlmRules: ruleEval.scopedLlmRules,
+            ruleTelemetry: ruleEval.telemetry,
+          });
+        }
+
+        currentLedger = updated;
+        persistLedger(currentLedger, jsonOutPath, htmlOutPath);
+
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ ok: true, ledger: currentLedger }));
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
       return;
     }
 
@@ -79,14 +336,14 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
           return;
         }
         const answeredBy = String(body.answered_by ?? "human (browser)");
-        const outcome = await recordAndVerifyAnswer(ledger, qid, text, {
+        const outcome = await recordAndVerifyAnswer(currentLedger, qid, text, {
           answeredBy,
           channel: "human",
-          config: body.verify ? config : undefined,
+          config: body.verify ? getEffectiveConfig() : undefined,
         });
-        persistLedger(ledger, jsonOutPath, htmlOutPath);
+        persistLedger(currentLedger, jsonOutPath, htmlOutPath);
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, outcome, ledger }));
+        res.end(JSON.stringify({ ok: true, outcome, ledger: currentLedger }));
       } catch (err) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
@@ -104,6 +361,7 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
 
   server.listen(port, "127.0.0.1", () => {
     console.log(`Diffgloss browser UI running at http://127.0.0.1:${port}`);
+    console.log("Configure models & API keys in-page via '⚙ Models' (saved to ~/.config/diffgloss/settings.json).");
     console.log("Shortcuts: j/k next/prev hunk · s split/unified · / search · u understood");
     console.log("Press Ctrl+C to stop.");
   });

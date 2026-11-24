@@ -9,6 +9,13 @@ export { buildInitialLedger } from "./pipeline/ledger.ts";
 export { explainLedger, estimateExplainCost } from "./pipeline/explainer.ts";
 export { runIntegrityChecks, attachFindingsToHunks } from "./pipeline/integrity.ts";
 export { loadConfig, discoverRuleDocs } from "./config/loader.ts";
+export {
+  PROVIDER_PRESETS,
+  loadUserSettings,
+  saveUserSettings,
+  toMaskedUserSettings,
+  getUserSettingsPath,
+} from "./config/user-settings.ts";
 export { createLLMClient, MockLLMClient } from "./llm/providers.ts";
 export { BudgetTracker, BudgetExceededError } from "./llm/budget.ts";
 export { redactSecrets } from "./provenance/redactor.ts";

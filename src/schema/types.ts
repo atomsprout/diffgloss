@@ -293,10 +293,12 @@ export interface DiffglossConfig {
   provider: ProviderDialect;
   model: string;
   base_url?: string;
+  api_key?: string;
   api_key_env?: string;
   judge_provider?: ProviderDialect;
   judge_model?: string;
   judge_base_url?: string;
+  judge_api_key?: string;
   judge_api_key_env?: string;
   effort: EffortLevel;
   budget_usd: number;

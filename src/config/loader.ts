@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { DiffglossConfig, EffortLevel, ProviderDialect } from "../schema/types.ts";
+import { loadUserSettings } from "./user-settings.ts";
 
 export const DEFAULT_CONFIG: DiffglossConfig = {
   provider: "anthropic",
@@ -102,6 +103,7 @@ export function loadConfig(
   cwd: string,
   overrides: Partial<DiffglossConfig> = {},
 ): DiffglossConfig {
+  const userSettings = loadUserSettings();
   const candidates = ["diffgloss.yaml", "diffgloss.yml", ".diffgloss.yaml", "diffgloss.json"];
   let fileData: Record<string, unknown> = {};
 
@@ -113,10 +115,15 @@ export function loadConfig(
     }
   }
 
-  // Auto-detect sensible default provider from environment if not set in config
-  let inferredProvider: ProviderDialect = DEFAULT_CONFIG.provider;
-  let inferredModel: string = DEFAULT_CONFIG.model;
-  if (typeof fileData.provider !== "string" && !overrides.provider) {
+  // Priority: CLI overrides > repo diffgloss.yaml > user ~/.config/diffgloss/settings.json > env inference > defaults
+  let inferredProvider: ProviderDialect =
+    userSettings.provider ?? DEFAULT_CONFIG.provider;
+  let inferredModel: string = userSettings.model ?? DEFAULT_CONFIG.model;
+  if (
+    !userSettings.provider &&
+    typeof fileData.provider !== "string" &&
+    !overrides.provider
+  ) {
     if (process.env.ANTHROPIC_API_KEY) {
       inferredProvider = "anthropic";
       inferredModel = "claude-sonnet-4-5";
@@ -136,17 +143,35 @@ export function loadConfig(
     ...DEFAULT_CONFIG,
     provider: (fileData.provider as ProviderDialect) ?? inferredProvider,
     model: (fileData.model as string) ?? inferredModel,
-    base_url: (fileData.base_url as string | undefined) ?? undefined,
+    base_url:
+      (fileData.base_url as string | undefined) ??
+      userSettings.base_url ??
+      undefined,
+    api_key: userSettings.api_key ?? undefined,
     api_key_env: (fileData.api_key_env as string | undefined) ?? undefined,
-    judge_provider: (fileData.judge_provider as ProviderDialect | undefined) ?? undefined,
-    judge_model: (fileData.judge_model as string | undefined) ?? undefined,
-    judge_base_url: (fileData.judge_base_url as string | undefined) ?? undefined,
-    judge_api_key_env: (fileData.judge_api_key_env as string | undefined) ?? undefined,
-    effort: (fileData.effort as EffortLevel) ?? DEFAULT_CONFIG.effort,
+    judge_provider:
+      (fileData.judge_provider as ProviderDialect | undefined) ??
+      userSettings.judge_provider ??
+      undefined,
+    judge_model:
+      (fileData.judge_model as string | undefined) ??
+      userSettings.judge_model ??
+      undefined,
+    judge_base_url:
+      (fileData.judge_base_url as string | undefined) ??
+      userSettings.judge_base_url ??
+      undefined,
+    judge_api_key: userSettings.judge_api_key ?? undefined,
+    judge_api_key_env:
+      (fileData.judge_api_key_env as string | undefined) ?? undefined,
+    effort:
+      (fileData.effort as EffortLevel) ??
+      userSettings.effort ??
+      DEFAULT_CONFIG.effort,
     budget_usd:
       typeof fileData.budget_usd === "number"
         ? fileData.budget_usd
-        : DEFAULT_CONFIG.budget_usd,
+        : userSettings.budget_usd ?? DEFAULT_CONFIG.budget_usd,
     max_questions:
       typeof fileData.max_questions === "number"
         ? fileData.max_questions

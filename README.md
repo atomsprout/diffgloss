@@ -122,6 +122,7 @@ Run `--serve` or open any generated `.diffgloss/report.html` offline (zero exter
 - **Clickable `file:line` Citations** that scroll to and highlight exact diff lines
 - **Self-Check Mode**: hides `What` on high-risk hunks until you click **Reveal What**, countering passive comprehension debt
 - **Glass-Box Panels**: attached built-in/SARIF findings in hunk context, collapsible **Symmetric Proof (Ruled-Out Concerns)**, and **Structured Rule Telemetry**
+- **In-Page Model Configuration (`⚙ Models`)**: 1-click presets for DeepSeek, Claude, OpenAI, Gemini, OpenRouter, Ollama, Qwen, Kimi, GLM & custom OpenAI-compatible endpoints, with live **Test Connection** and **▶ Run Explain Now** (saved locally to `~/.config/diffgloss/settings.json` with `chmod 600`, zero env vars needed)
 - **Live Browser Q&A**: in `--serve` mode, submit answers directly in the browser to persist back to `.diffgloss/ledger.json`
 
 ---
@@ -137,7 +138,16 @@ bun install
 bun run build
 ```
 
-### 1. Fast Deterministic Inspection (<1s, zero LLM cost)
+### 1. Zero-Env-Var Browser UI (Configure Any Model In-Page!)
+
+```bash
+# Opens browser UI immediately — click "⚙ Models" to pick a preset (DeepSeek, Claude, OpenAI,
+# Gemini, OpenRouter, Ollama, Qwen, Kimi, GLM, or Custom), save your key locally (~/.config/diffgloss/settings.json, chmod 600),
+# test connection, and click "▶ Run Explain Now" right in the page!
+node dist/cli.js ui main..HEAD
+```
+
+### 2. Fast Deterministic Inspection (<1s, zero LLM cost)
 
 ```bash
 node dist/cli.js inspect HEAD~1..HEAD \

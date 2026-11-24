@@ -17,6 +17,13 @@ import {
   evaluateStructuredRules,
   parseStructuredRuleMarkdown,
 } from "../src/rules/engine.ts";
+import {
+  loadUserSettings,
+  maskApiKey,
+  PROVIDER_PRESETS,
+  saveUserSettings,
+  toMaskedUserSettings,
+} from "../src/config/user-settings.ts";
 
 describe("Multi-language AST scope extraction", () => {
   it("extracts nested TypeScript class methods while ignoring braces in strings & comments", () => {
@@ -238,5 +245,43 @@ describe("MCP Server & GitHub PR Sync Planner", () => {
     expect(plan.unchangedFingerprints).toEqual([activeFp]);
     expect(plan.newInlineComments.length).toBe(0);
     expect(plan.resolvedCommentIds).toEqual([202]);
+  });
+});
+
+describe("Local User Settings Store (In-Page Model Config)", () => {
+  it("persists settings outside repo, masks keys, and preserves existing key on blank updates", () => {
+    const tmpHome = mkdtempSync(path.join(os.tmpdir(), "diffgloss-cfg-"));
+    try {
+      expect(PROVIDER_PRESETS.length).toBeGreaterThanOrEqual(8);
+      saveUserSettings(
+        {
+          preset: "deepseek",
+          provider: "deepseek",
+          model: "deepseek-chat",
+          base_url: "https://api.deepseek.com/v1",
+          api_key: "sk-demo1234567890abcd",
+          budget_usd: 2.0,
+        },
+        tmpHome,
+      );
+
+      // Update model without re-sending api_key -> must preserve saved key!
+      const updated = saveUserSettings(
+        { model: "deepseek-reasoner", api_key: "" },
+        tmpHome,
+      );
+      expect(updated.model).toBe("deepseek-reasoner");
+      expect(updated.api_key).toBe("sk-demo1234567890abcd");
+
+      const reloaded = loadUserSettings(tmpHome);
+      expect(reloaded.api_key).toBe("sk-demo1234567890abcd");
+
+      const masked = toMaskedUserSettings(reloaded, tmpHome);
+      expect(masked.has_api_key).toBe(true);
+      expect(masked.api_key_masked).toBe(maskApiKey("sk-demo1234567890abcd"));
+      expect(masked.api_key_masked).not.toContain("1234567890");
+    } finally {
+      rmSync(tmpHome, { recursive: true, force: true });
+    }
   });
 });

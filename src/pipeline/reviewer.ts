@@ -115,6 +115,7 @@ export async function runSymmetricProofReview(
       provider: options.config.provider,
       model: options.config.model,
       baseUrl: options.config.base_url,
+      apiKey: options.config.api_key,
       apiKeyEnv: options.config.api_key_env,
     });
 
@@ -124,6 +125,7 @@ export async function runSymmetricProofReview(
       provider: options.config.judge_provider ?? options.config.provider,
       model: options.config.judge_model ?? options.config.model,
       baseUrl: options.config.judge_base_url ?? options.config.base_url,
+      apiKey: options.config.judge_api_key ?? options.config.api_key,
       apiKeyEnv:
         options.config.judge_api_key_env ?? options.config.api_key_env,
     });

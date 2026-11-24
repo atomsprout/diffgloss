@@ -44,6 +44,7 @@ function printHelp(): void {
   console.log(`diffgloss — Explainability-first code review ledger
 
 Usage:
+  diffgloss ui [git-diff-args...] [options]          Open interactive browser UI immediately (configure models in-page!)
   diffgloss inspect [git-diff-args...] [options]     Deterministic pass (<1s): parse, AST split, collapse, rules
   diffgloss explain [git-diff-args...] [options]     Full pass: deterministic + provenance + LLM explain + verify
   diffgloss render <ledger.json> [options]           Render existing ledger to HTML / Markdown / SARIF / rdjsonl
@@ -398,6 +399,7 @@ async function runInspectOrExplain(mode: "inspect" | "explain", args: string[]):
   if (shouldServe) {
     startPreviewServer({
       port,
+      cwd,
       ledger,
       jsonOutPath: outJson,
       htmlOutPath: outHtml,
@@ -438,6 +440,7 @@ function runRender(args: string[]): void {
   if (shouldServe) {
     startPreviewServer({
       port,
+      cwd: process.cwd(),
       ledger,
       jsonOutPath: inputPath,
       htmlOutPath: outHtml,
@@ -663,6 +666,9 @@ async function main(): Promise<void> {
     return;
   }
   switch (cmd) {
+    case "ui":
+      await runInspectOrExplain("inspect", [...rest, "--serve"]);
+      break;
     case "inspect":
       await runInspectOrExplain("inspect", rest);
       break;
