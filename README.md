@@ -36,7 +36,7 @@ Diffgloss treats review comprehension as a **verifiable ledger**. Every hunk (an
 ## Architecture
 
 ```mermaid
-flowchart TB
+flowchart LR
   classDef input fill:#1f6feb,stroke:#58a6ff,color:#ffffff,font-weight:bold
   classDef det fill:#238636,stroke:#3fb950,color:#ffffff,font-weight:bold
   classDef prov fill:#8957e5,stroke:#bc8cff,color:#ffffff,font-weight:bold
@@ -44,51 +44,53 @@ flowchart TB
   classDef review fill:#da3633,stroke:#f85149,color:#ffffff,font-weight:bold
   classDef out fill:#0969da,stroke:#79c0ff,color:#ffffff,font-weight:bold
 
-  subgraph S1["1. Ingestion & Deterministic Preprocessing (<1s)"]
-    A1["git diff / patch + Repo"]:::input --> A2["Unified Diff Parser<br/>Stable hunk_id · Skip Secrets & Binaries"]:::det
-    A2 --> A3["Multi-Language AST Scope Splitter<br/>TS · JS · Py · Go · Rust · Java · C++"]:::det
-    A3 --> A4["Cross-File Move Detector &<br/>Deterministic Noise Classifier"]:::det
-    A4 --> A5["Intent-Integrity & Regex Rules<br/>Weakened Tests · Removed Guards · Silent Catch"]:::det
+  subgraph S1["1. Ingest & AST (<1s)"]
+    direction TB
+    A1["git diff / commit<br/>Skip Secrets & Binaries"]:::input
+    A2["Multi-Lang AST Split<br/>+ Move & Noise Collapse"]:::det
+    A3["Intent-Integrity &<br/>Scoped Regex Rules"]:::det
+    A1 --> A2 --> A3
   end
 
-  subgraph S2["2. Provenance & Trust Boundary"]
-    P1["Base-Branch Rules<br/>REVIEW.md · AGENTS.md · CLAUDE.md<br/>.diffgloss/rules/*.md"]:::prov
-    P2["4-Tier Provenance Capture<br/>Write-Time Hook -> Auto Local Sessions<br/>Git AI · Agent Trace · Entire"]:::prov
-    P3["Secret Redactor<br/>Keys · JWT · PEM · Passwords"]:::prov
+  subgraph S2["2. Trust & Provenance"]
+    direction TB
+    P1["Base-Branch Rules<br/>REVIEW · AGENTS · CLAUDE"]:::prov
+    P2["4-Tier Provenance<br/>Hooks · Local Sessions<br/>Git AI · Trace · Entire"]:::prov
+    P3["Secret Redactor<br/>Keys · JWT · PEM"]:::prov
     P2 --> P3
   end
 
-  subgraph S3["3. Blind-First Explanation & Grounding"]
-    E1["Hard USD Budget Guard &<br/>Multi-Provider Fetch Client<br/>Anthropic · OpenAI · DeepSeek · Google"]:::llm
-    E2["Blind-First Explainer<br/>Semantic Reading Order + What/Why"]:::llm
-    E3["Mechanical Citation Verifier<br/>1x Auto-Repair -> Honest Demotion"]:::det
-    E4["Cold-Start Semantic Judge<br/>Cross-Model Optional"]:::llm
-    E1 --> E2 --> E3 --> E4
+  subgraph S3["3. Blind-First Explain"]
+    direction TB
+    E1["Hard USD Budget +<br/>Multi-Provider Client"]:::llm
+    E2["Blind Explainer<br/>Groups · What · Why"]:::llm
+    E3["Citation Check (1x Fix)<br/>+ Semantic Judge"]:::det
+    E1 --> E2 --> E3
   end
 
-  subgraph S4["4. Isolated Symmetric-Proof Review & Q&A"]
-    R1["Parallel Narrow Specialists<br/>Logic/Correctness + Security/Rules<br/>STRICTLY ISOLATED from Author Answers"]:::review
-    R2["Independent Cold-Start Verifier<br/>Confirmed Findings + Ruled-Out Proof"]:::review
-    R3["Triggered Q&A Verifier<br/>Human · Forked Claude/Codex Resume<br/>Confirmed · Refuted · Unverifiable"]:::prov
+  subgraph S4["4. Isolated Review & Q&A"]
+    direction TB
+    R1["Parallel Specialists<br/>(No Author Answers)"]:::review
+    R2["Cold Verifier +<br/>Symmetric Ruled-Out"]:::review
+    R3["Forked Session Q&A<br/>Confirmed · Refuted"]:::prov
     R1 --> R2
   end
 
-  subgraph S5["5. Verifiable Ledger & Multi-Surface Outputs"]
-    O1["diffgloss.explanation/v0 JSON Ledger<br/>Coverage Invariant: total = explained + collapsed + unexplained"]:::out
-    O2["Interactive Browser HTML Tour<br/>Split/Unified · Citation Jump · Self-Check"]:::out
-    O3["GitHub PR Sync & CI<br/>Sticky Ledger · Fingerprints · SARIF · rdjsonl"]:::out
-    O4["MCP Stdio Server & Agent Skill<br/>Claude Code · Codex · Cursor"]:::out
+  subgraph S5["5. Ledger Surfaces"]
+    direction TB
+    O1["explanation/v0 JSON<br/>total = exp + col + unexp"]:::out
+    O2["Browser Workbench<br/>Repo/Commit · ⚙ Models"]:::out
+    O3["GitHub PR · SARIF<br/>rdjsonl · MCP Stdio"]:::out
     O1 --> O2
     O1 --> O3
-    O1 --> O4
   end
 
-  A5 --> E1
+  A3 --> E1
   P1 --> E1
   P3 --> E2
-  A5 --> R1
+  A3 --> R1
   P1 --> R1
-  E4 --> O1
+  E3 --> O1
   R2 --> O1
   R3 --> O1
 ```
@@ -98,54 +100,49 @@ flowchart TB
 ```mermaid
 sequenceDiagram
   autonumber
-  actor Dev as Reviewer / Workbench UI
-  participant Pre as Deterministic Preproc & AST
-  participant Exp as Blind-First Explainer
-  participant Cite as Mechanical Citation Verifier
-  participant Auth as Author Session (Forked Read-Only)
-  participant Cold as Cold-Start Verifier
-  participant Spec as Isolated Bug Specialists
+  actor Dev as Reviewer UI
+  participant Pre as AST & Preproc
+  participant Exp as Blind Explainer
+  participant Auth as Author Session
+  participant Ver as Cold Verifier
+  participant Spec as Bug Specialists
 
   Dev->>Pre: Load Repo Diff or Commit
-  Pre->>Pre: Skip secrets, AST sub-hunk split, collapse noise, run integrity rules
-  Pre->>Exp: Active hunks + Base-branch rules + Declared intent
-  Exp->>Cite: Proposed groups + What(file:line) + Why(source)
-  Cite-->>Exp: 1x auto-repair if citation/symbol invalid
+  Pre->>Exp: Active hunks + Base rules + Declared intent
+  Exp->>Ver: What(file:line) + Why(source) [1x citation auto-repair]
   alt Citations valid & Why evidenced
-    Cite->>Dev: Mark status = explained
+    Ver->>Dev: status = explained
   else Missing Why / Guard removed / Repair failed
-    Cite->>Dev: Mark status = unexplained + Clarifying Question
-    Dev->>Auth: Ask triggered question (--fork-session, read-only)
-    Auth-->>Cold: Unverified author claim
-    Cold->>Dev: Verdict: confirmed | refuted | unverifiable
+    Ver->>Dev: status = unexplained + Clarifying Question
+    Dev->>Auth: Triggered question (--fork-session, read-only)
+    Auth-->>Ver: Unverified author claim
+    Ver->>Dev: Verdict: confirmed | refuted | unverifiable
   end
   Note over Pre,Spec: Author answers NEVER enter bug-finding specialists
-  Pre->>Spec: Sanitized hunks + Scoped custom rules
-  Spec->>Cold: Candidate bugs + Ruled-Out Concerns (with code proof)
-  Cold->>Dev: Verified findings + Glass-box ruled_out ledger
+  Pre->>Spec: Sanitized hunks + Scoped rules
+  Spec->>Ver: Candidate bugs + Ruled-Out Concerns (with code proof)
+  Ver->>Dev: Verified findings + Glass-box ruled_out ledger
 ```
 
 ### Hunk Coverage & Provenance State Machine
 
 ```mermaid
 stateDiagram-v2
-  [*] --> ParsedHunk: git diff / commit
-  ParsedHunk --> Skipped: secret_suspected | binary
-  ParsedHunk --> SubHunk: AST scope split (>40 changed lines)
-  SubHunk --> Collapsed: lockfile / generated / whitespace / move
-  SubHunk --> Unexplained: substantive / test / config (default honest state)
+  direction LR
+  [*] --> Parsed: git diff / commit
+  Parsed --> Skipped: secret | binary
+  Parsed --> SubHunk: AST scope split
+  SubHunk --> Collapsed: noise | move | lockfile
+  SubHunk --> Unexplained: default honest state
 
-  Unexplained --> CitationCheck: Blind-first LLM explain
-  CitationCheck --> Explained: citations_valid && semantic_judge != failed
-  CitationCheck --> Unexplained: citation repair failed (claim_mismatch)
+  Unexplained --> Explained: citations_valid && judge_passed
+  Unexplained --> QACheck: clarifying question answered
+  QACheck --> Explained: confirmed && citations_valid
+  QACheck --> Unexplained: refuted | unverifiable
 
-  Unexplained --> QAVerifier: Triggered clarifying question answered
-  QAVerifier --> Explained: verdict = confirmed && citations_valid
-  QAVerifier --> Unexplained: verdict = refuted | unverifiable (pinned high)
-
-  Collapsed --> [*]: 1-click expandable
-  Explained --> [*]: Covered in ledger
-  Unexplained --> [*]: Surfaced & CI-gateable
+  Collapsed --> [*]
+  Explained --> [*]
+  Unexplained --> [*]
 ```
 
 > **Key rule:** Author answers from Q&A enter only the `Why` provenance column and are **never** fed to the bug-finding specialists, preventing author self-defense from anchoring defect detection.
