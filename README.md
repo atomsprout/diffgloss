@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://atomsprout.github.io/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.github.io%2Fdiffgloss-38bdf8.svg" alt="GitHub Pages" /></a>
+  <a href="https://atomsprout.com/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.com%2Fdiffgloss-38bdf8.svg" alt="GitHub Pages" /></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/runtime-Node%2020%2B%20%7C%20Bun%201.2%2B-3fb950.svg" alt="Runtime: Node 20+ | Bun 1.2+" />
   <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-8957e5.svg" alt="Zero Runtime Dependencies" />
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <strong><a href="https://atomsprout.github.io/diffgloss/">✦ Explore the Interactive 3D Site &amp; Live Demo ↗</a></strong>
+  <strong><a href="https://atomsprout.com/diffgloss/">✦ Explore the Interactive 3D Site &amp; Live Demo ↗</a></strong>
 </p>
 
 ---
