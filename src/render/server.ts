@@ -5,13 +5,24 @@ import { discoverRuleDocs, loadConfig } from "../config/loader.ts";
 import {
   loadUserSettings,
   PROVIDER_PRESETS,
+  recordRecentRepo,
   saveUserSettings,
   toMaskedUserSettings,
   type UserSettings,
 } from "../config/user-settings.ts";
+import {
+  extractRepoDiff,
+  inspectGitRepo,
+  listNearbyGitRepos,
+  resolveGitTopLevel,
+  type DiffTarget,
+} from "../diff/git-source.ts";
 import { createLLMClient } from "../llm/providers.ts";
 import { explainLedger } from "../pipeline/explainer.ts";
+import { attachFindingsToHunks } from "../pipeline/integrity.ts";
+import { buildInitialLedger } from "../pipeline/ledger.ts";
 import { runSymmetricProofReview } from "../pipeline/reviewer.ts";
+import { enrichLedgerProvenance } from "../provenance/capture.ts";
 import { recordAndVerifyAnswer } from "../provenance/questioner.ts";
 import {
   evaluateStructuredRules,
@@ -66,7 +77,6 @@ function persistLedger(
   }
   if (htmlOutPath) {
     mkdirSync(path.dirname(htmlOutPath), { recursive: true });
-    // Never embed liveServer=true or keys in static HTML file on disk
     writeFileSync(htmlOutPath, renderHtmlReport(ledger, { liveServer: false }), "utf8");
   }
 }
@@ -109,13 +119,15 @@ function parseSettingsPatch(body: Record<string, unknown>): Partial<UserSettings
 }
 
 export function startPreviewServer(options: PreviewServerOptions): http.Server {
-  const cwd = options.cwd ?? process.cwd();
+  let currentRepoPath =
+    resolveGitTopLevel(options.cwd ?? process.cwd()) ??
+    path.resolve(options.cwd ?? process.cwd());
   const { port, jsonOutPath, htmlOutPath, homeDir } = options;
   let currentLedger = options.ledger;
 
   const getEffectiveConfig = (): DiffglossConfig => {
     const saved = loadUserSettings(homeDir);
-    return loadConfig(cwd, {
+    return loadConfig(currentRepoPath, {
       ...(options.config ?? {}),
       ...(saved.provider ? { provider: saved.provider } : {}),
       ...(saved.model ? { model: saved.model } : {}),
@@ -143,6 +155,128 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
     if (req.method === "GET" && url.pathname === "/api/ledger") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(currentLedger, null, 2));
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/repo") {
+      try {
+        const reqPath = url.searchParams.get("path")?.trim() || currentRepoPath;
+        const limitRaw = url.searchParams.get("limit");
+        const limit = limitRaw ? Math.min(100, Math.max(5, Number.parseInt(limitRaw, 10) || 30)) : 30;
+        const repo = inspectGitRepo(reqPath, limit);
+        const saved = loadUserSettings(homeDir);
+        const nearby = listNearbyGitRepos(repo.repo_path);
+
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            repo,
+            recent_repos: saved.recent_repos ?? [repo.repo_path],
+            nearby_repos: nearby,
+          }),
+        );
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/load-diff") {
+      try {
+        const body = await readJsonBody(req);
+        const repoPath =
+          typeof body.repo_path === "string" && body.repo_path.trim()
+            ? body.repo_path.trim()
+            : currentRepoPath;
+        const mode = String(body.mode ?? "working");
+
+        let target: DiffTarget;
+        if (mode === "staged") {
+          target = { mode: "staged" };
+        } else if (mode === "commit") {
+          target = { mode: "commit", sha: String(body.sha ?? "HEAD") };
+        } else if (mode === "range") {
+          target = { mode: "range", range: String(body.range ?? "HEAD~1..HEAD") };
+        } else {
+          target = { mode: "working" };
+        }
+
+        const repo = inspectGitRepo(repoPath, 30);
+        currentRepoPath = repo.repo_path;
+        let recent: string[] = [currentRepoPath];
+        try {
+          recent = recordRecentRepo(currentRepoPath, homeDir);
+        } catch {
+          // Non-fatal in read-only or sandboxed HOME environments
+        }
+        const extracted = extractRepoDiff(currentRepoPath, target);
+        const cfg = getEffectiveConfig();
+
+        const ledger = buildInitialLedger(extracted.raw_diff, {
+          cwd: currentRepoPath,
+          title: extracted.title,
+          declaredIntent: extracted.declared_intent,
+          declaredIntentRef: extracted.declared_intent_ref,
+          source: {
+            repo: repo.name,
+            base_ref: extracted.base_ref,
+            head_ref: extracted.head_ref,
+            diff_args: extracted.diff_args,
+          },
+          splitLargeHunks: cfg.split_large_hunks,
+          subhunkLineThreshold: cfg.subhunk_line_threshold,
+          ignorePatterns: cfg.ignore,
+        });
+
+        const rules = loadStructuredRules(currentRepoPath, {
+          baseRef: extracted.base_ref,
+          rulesFromBase: cfg.rules_from_base,
+        });
+        const ruleEval = evaluateStructuredRules(rules, ledger.hunks);
+        if (ruleEval.findings.length > 0) {
+          const merged = [...(ledger.findings ?? []), ...ruleEval.findings];
+          attachFindingsToHunks(ledger.hunks, merged);
+          ledger.findings = merged;
+        }
+        if (ruleEval.telemetry.length > 0) {
+          ledger.rule_telemetry = ruleEval.telemetry;
+        }
+
+        enrichLedgerProvenance(ledger, {
+          cwd: currentRepoPath,
+          autoDiscover: true,
+          redact: cfg.redact_secrets,
+        });
+
+        currentLedger = ledger;
+        persistLedger(currentLedger, jsonOutPath, htmlOutPath);
+
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            ledger: currentLedger,
+            repo,
+            recent_repos: recent,
+            target_label: extracted.label,
+          }),
+        );
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
       return;
     }
 
@@ -237,7 +371,6 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
     if (req.method === "POST" && url.pathname === "/api/explain") {
       try {
         const body = await readJsonBody(req);
-        // Optionally persist settings updates sent together with Run Explain
         if (body.settings && typeof body.settings === "object") {
           saveUserSettings(
             parseSettingsPatch(body.settings as Record<string, unknown>),
@@ -264,7 +397,6 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
           },
         };
 
-        // Reset prior LLM explanations so a fresh model run re-evaluates cleanly
         for (const h of workingLedger.hunks) {
           if (h.status !== "collapsed") {
             h.status = "unexplained";
@@ -274,7 +406,7 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
 
         const baseRef = workingLedger.source?.base_ref;
         const changedPaths = [...new Set(workingLedger.hunks.map((h) => h.path))];
-        const ruleDocs = discoverRuleDocs(cwd, changedPaths, {
+        const ruleDocs = discoverRuleDocs(currentRepoPath, changedPaths, {
           baseRef,
           rulesFromBase: cfg.rules_from_base,
         });
@@ -288,14 +420,14 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
             : saved.enable_review ?? false;
 
         let updated = await explainLedger(workingLedger, {
-          cwd,
+          cwd: currentRepoPath,
           config: cfg,
           ruleDocs,
           runJudge,
         });
 
         if (runReview) {
-          const rules = loadStructuredRules(cwd, {
+          const rules = loadStructuredRules(currentRepoPath, {
             baseRef,
             rulesFromBase: cfg.rules_from_base,
           });
@@ -360,9 +492,10 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
   });
 
   server.listen(port, "127.0.0.1", () => {
-    console.log(`Diffgloss browser UI running at http://127.0.0.1:${port}`);
-    console.log("Configure models & API keys in-page via '⚙ Models' (saved to ~/.config/diffgloss/settings.json).");
-    console.log("Shortcuts: j/k next/prev hunk · s split/unified · / search · u understood");
+    console.log(`Diffgloss Workbench running at http://127.0.0.1:${port}`);
+    console.log("  - Click '📂 Repo / Commit' to switch repos or browse any commit/diff");
+    console.log("  - Click '⚙ Models' to configure API keys & run AI explain in-page");
+    console.log("  - Shortcuts: j/k nav · s split/unified · / search · u understood");
     console.log("Press Ctrl+C to stop.");
   });
 

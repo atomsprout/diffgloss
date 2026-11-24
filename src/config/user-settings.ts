@@ -136,6 +136,7 @@ export interface UserSettings {
   budget_usd?: number;
   enable_judge?: boolean;
   enable_review?: boolean;
+  recent_repos?: string[];
 }
 
 export interface MaskedUserSettings {
@@ -215,6 +216,17 @@ export function saveUserSettings(
   } catch {
     // Windows does not enforce POSIX chmod
   }
+  return next;
+}
+
+export function recordRecentRepo(repoPath: string, homeDir?: string): string[] {
+  const existing = loadUserSettings(homeDir);
+  const resolved = path.resolve(repoPath);
+  const next = [
+    resolved,
+    ...(existing.recent_repos ?? []).filter((p) => p !== resolved),
+  ].slice(0, 10);
+  saveUserSettings({ recent_repos: next }, homeDir);
   return next;
 }
 

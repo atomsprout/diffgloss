@@ -1,6 +1,12 @@
 export * from "./schema/types.ts";
 export { validateLedger, verifyHunkCitations, computeCoverage } from "./schema/validate.ts";
 export { parseUnifiedDiff, isSuspectedSecretPath } from "./diff/parser.ts";
+export {
+  inspectGitRepo,
+  extractRepoDiff,
+  listNearbyGitRepos,
+  resolveGitTopLevel,
+} from "./diff/git-source.ts";
 export { classifyHunk } from "./diff/classifier.ts";
 export { extractSymbolScopes, extractFileScopes, findEnclosingScope } from "./diff/ast.ts";
 export { splitLargeHunks } from "./diff/subhunk.ts";

@@ -524,6 +524,42 @@ export function renderHtmlReport(
     .status-msg.info { display: block; background: var(--slate-bg); color: var(--text); border: 1px solid var(--border); }
     .check-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 6px 0 10px; font-size: 12px; }
     .check-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .commit-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+    }
+    .commit-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      color: var(--text);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      padding: 9px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .commit-row:last-child { border-bottom: none; }
+    .commit-row:hover { background: rgba(88, 166, 255, 0.12); }
+    .commit-sha {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      background: rgba(88, 166, 255, 0.14);
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .commit-subj { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .commit-meta { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .quick-diff-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -548,6 +584,8 @@ export function renderHtmlReport(
         <button class="btn" id="split-toggle" title="Toggle Unified / Side-by-Side (s)">Unified</button>
         <button class="btn" id="self-check-toggle" title="Hide explanations on high-risk hunks until revealed">Self-Check: Off</button>
         <span class="badge b-slate" id="understood-counter">Understood 0/0</span>
+        <button class="btn" id="repo-picker-btn" title="Switch local git repository, working tree diff, branch range, or any commit">📂 Repo / Commit</button>
+        <button class="btn btn-primary" id="quick-explain-btn" title="Run AI explanation using saved model settings">▶ Explain</button>
         <button class="btn" id="settings-btn" title="Configure any LLM provider, API key & re-run in page">⚙ Models</button>
         <button class="btn" id="download-json-btn">Export JSON</button>
         <button class="btn" id="theme-toggle">Theme</button>
@@ -563,6 +601,44 @@ export function renderHtmlReport(
   <div class="layout">
     <aside id="sidebar"></aside>
     <main id="main"></main>
+  </div>
+
+  <div class="modal-backdrop" id="repo-modal">
+    <div class="modal-panel" role="dialog" aria-label="Repository and Commit Picker" style="max-width:720px">
+      <div class="modal-header">
+        <h2>📂 Select Repository, Diff or Commit</h2>
+        <button class="btn" id="repo-close">Close</button>
+      </div>
+      <div id="repo-static-note" class="status-msg info" style="margin-bottom:10px"></div>
+      <div id="repo-live-body">
+        <div class="field">
+          <label for="repo-path-input">Local Git Repository Path</label>
+          <div style="display:flex;gap:8px">
+            <input id="repo-path-input" type="text" style="flex:1" placeholder="/path/to/your/git/repo" />
+            <button class="btn" id="repo-load-btn">Load Repo</button>
+          </div>
+        </div>
+        <div class="field" id="repo-chips-wrap">
+          <label>Recent &amp; Nearby Git Repositories</label>
+          <div class="preset-chips" id="repo-chips"></div>
+        </div>
+        <div class="field">
+          <label>Current Diff Views <span id="repo-branch-badge" style="text-transform:none"></span></label>
+          <div class="quick-diff-row">
+            <button class="btn" id="load-working-btn">Working Tree</button>
+            <button class="btn" id="load-staged-btn">Staged Changes</button>
+            <input id="range-input" class="search-input" type="text" placeholder="e.g. main..HEAD or HEAD~3..HEAD" style="min-width:210px" />
+            <button class="btn" id="load-range-btn">Load Range</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="commit-filter-input">Or Click Any Commit (auto-loads diff + commit message as intent)</label>
+          <input id="commit-filter-input" type="search" placeholder="Filter commits by SHA or message..." style="margin-bottom:6px" />
+          <div class="commit-list" id="commit-list"></div>
+        </div>
+        <div id="repo-status" class="status-msg"></div>
+      </div>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="settings-modal">
@@ -704,6 +780,8 @@ export function renderHtmlReport(
 
       function renderHeader() {
         const c = ledger.coverage;
+        document.getElementById("report-title").textContent = ledger.overview.title || "Diffgloss Review Ledger";
+        document.title = (ledger.overview.title || "Diffgloss Review Ledger") + " — Diffgloss";
         document.getElementById("cnt-all").textContent = c.total;
         document.getElementById("cnt-unexplained").textContent = c.unexplained;
         document.getElementById("cnt-explained").textContent = c.explained;
@@ -1243,6 +1321,176 @@ export function renderHtmlReport(
       document.getElementById("theme-toggle").addEventListener("click", () => {
         const cur = document.documentElement.getAttribute("data-theme");
         document.documentElement.setAttribute("data-theme", cur === "light" ? "dark" : "light");
+      });
+
+      // --- Repo & Commit Picker Modal ---
+      const repoModal = document.getElementById("repo-modal");
+      const repoStatusEl = document.getElementById("repo-status");
+      const repoStaticNote = document.getElementById("repo-static-note");
+      const repoLiveBody = document.getElementById("repo-live-body");
+      let activeRepoInfo = null;
+      let commitsCache = [];
+
+      function setRepoStatus(kind, msg) {
+        repoStatusEl.className = "status-msg " + kind;
+        repoStatusEl.textContent = msg;
+      }
+
+      function renderCommitsList(filterText) {
+        const q = (filterText || "").trim().toLowerCase();
+        const filtered = commitsCache.filter((c) =>
+          !q || c.short_sha.toLowerCase().includes(q) || c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q)
+        );
+        const box = document.getElementById("commit-list");
+        if (filtered.length === 0) {
+          box.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px">No commits found.</div>';
+          return;
+        }
+        box.innerHTML = filtered.map((c) =>
+          '<button type="button" class="commit-row" data-commit-sha="' + esc(c.sha) + '">' +
+          '<span class="commit-sha">' + esc(c.short_sha) + '</span>' +
+          '<span class="commit-subj">' + esc(c.subject) + '</span>' +
+          '<span class="commit-meta">' + esc(c.author) + (c.relative_time ? " · " + esc(c.relative_time) : "") + '</span>' +
+          '</button>'
+        ).join("");
+      }
+
+      async function fetchRepoMetadata(targetPath) {
+        setRepoStatus("info", "Inspecting git repository...");
+        try {
+          const qs = targetPath ? "?path=" + encodeURIComponent(targetPath) : "";
+          const res = await fetch("/api/repo" + qs);
+          const data = await res.json();
+          if (!data.ok) {
+            setRepoStatus("err", data.error || "Failed to inspect repo");
+            return;
+          }
+          activeRepoInfo = data.repo;
+          commitsCache = data.repo.commits || [];
+          document.getElementById("repo-path-input").value = data.repo.repo_path;
+          document.getElementById("repo-branch-badge").textContent =
+            "(branch: " + data.repo.branch + " · " + data.repo.dirty_files + " dirty · " + data.repo.staged_files + " staged)";
+          document.getElementById("load-working-btn").textContent = "Working Tree (" + data.repo.dirty_files + ")";
+          document.getElementById("load-staged-btn").textContent = "Staged (" + data.repo.staged_files + ")";
+          document.getElementById("range-input").value =
+            data.repo.default_base && data.repo.default_base !== data.repo.branch
+              ? data.repo.default_base + "..HEAD"
+              : "HEAD~1..HEAD";
+
+          const allRepos = [...new Set([...(data.recent_repos || []), ...(data.nearby_repos || [])])];
+          const chips = document.getElementById("repo-chips");
+          chips.innerHTML = allRepos.map((rp) => {
+            const parts = rp.split(/[\\/]/);
+            const name = parts[parts.length - 1] || rp;
+            const isCur = rp === data.repo.repo_path;
+            return '<button type="button" class="preset-chip' + (isCur ? " active" : "") + '" data-repo-path="' + esc(rp) + '" title="' + esc(rp) + '">' + esc(name) + "</button>";
+          }).join("");
+
+          renderCommitsList(document.getElementById("commit-filter-input").value);
+          repoStatusEl.className = "status-msg";
+        } catch (err) {
+          setRepoStatus("err", err.message);
+        }
+      }
+
+      async function loadDiffSelection(payload) {
+        setRepoStatus("info", "Loading diff & building explainability ledger...");
+        try {
+          const res = await fetch("/api/load-diff", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              repo_path: document.getElementById("repo-path-input").value.trim(),
+              ...payload,
+            }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            setRepoStatus("err", data.error || "Failed to load diff");
+            return;
+          }
+          ledger = data.ledger;
+          activeFilter = "all";
+          document.querySelectorAll("[data-filter]").forEach((b) =>
+            b.classList.toggle("active", b.getAttribute("data-filter") === "all")
+          );
+          renderHeader();
+          renderBody();
+          repoModal.classList.remove("open");
+        } catch (err) {
+          setRepoStatus("err", err.message);
+        }
+      }
+
+      document.getElementById("repo-picker-btn").addEventListener("click", () => {
+        repoModal.classList.add("open");
+        repoStatusEl.className = "status-msg";
+        if (!LIVE_SERVER) {
+          repoStaticNote.style.display = "block";
+          repoStaticNote.textContent = "Static offline HTML mode: run 'diffgloss ui' to switch repositories and browse commits interactively.";
+          repoLiveBody.style.display = "none";
+          return;
+        }
+        repoStaticNote.style.display = "none";
+        repoLiveBody.style.display = "block";
+        fetchRepoMetadata(activeRepoInfo?.repo_path || "");
+      });
+
+      document.getElementById("repo-close").addEventListener("click", () => repoModal.classList.remove("open"));
+      repoModal.addEventListener("click", (ev) => {
+        if (ev.target === repoModal) repoModal.classList.remove("open");
+      });
+      document.getElementById("repo-load-btn").addEventListener("click", () => {
+        fetchRepoMetadata(document.getElementById("repo-path-input").value.trim());
+      });
+      document.getElementById("repo-chips").addEventListener("click", (ev) => {
+        const chip = ev.target.closest("[data-repo-path]");
+        if (!chip) return;
+        fetchRepoMetadata(chip.getAttribute("data-repo-path"));
+      });
+      document.getElementById("load-working-btn").addEventListener("click", () => loadDiffSelection({ mode: "working" }));
+      document.getElementById("load-staged-btn").addEventListener("click", () => loadDiffSelection({ mode: "staged" }));
+      document.getElementById("load-range-btn").addEventListener("click", () =>
+        loadDiffSelection({ mode: "range", range: document.getElementById("range-input").value.trim() })
+      );
+      document.getElementById("commit-filter-input").addEventListener("input", (ev) => renderCommitsList(ev.target.value));
+      document.getElementById("commit-list").addEventListener("click", (ev) => {
+        const row = ev.target.closest("[data-commit-sha]");
+        if (!row) return;
+        loadDiffSelection({ mode: "commit", sha: row.getAttribute("data-commit-sha") });
+      });
+
+      document.getElementById("quick-explain-btn").addEventListener("click", async () => {
+        if (!LIVE_SERVER) {
+          document.getElementById("settings-btn").click();
+          return;
+        }
+        const btn = document.getElementById("quick-explain-btn");
+        btn.disabled = true;
+        btn.textContent = "Explaining...";
+        try {
+          const res = await fetch("/api/explain", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (data.ok && data.ledger) {
+            ledger = data.ledger;
+            renderHeader();
+            renderBody();
+          } else {
+            // Open Models settings modal and display exact error (e.g. missing API key)
+            document.getElementById("settings-btn").click();
+            setTimeout(() => setStatus("err", data.error || "Please configure a model and API key first."), 150);
+          }
+        } catch (err) {
+          document.getElementById("settings-btn").click();
+          setTimeout(() => setStatus("err", err.message), 150);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Explain";
+        }
       });
 
       // --- In-Page Model Settings Modal ---

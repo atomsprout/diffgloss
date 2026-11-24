@@ -18,6 +18,10 @@ import {
   parseStructuredRuleMarkdown,
 } from "../src/rules/engine.ts";
 import {
+  extractRepoDiff,
+  inspectGitRepo,
+} from "../src/diff/git-source.ts";
+import {
   loadUserSettings,
   maskApiKey,
   PROVIDER_PRESETS,
@@ -283,5 +287,28 @@ describe("Local User Settings Store (In-Page Model Config)", () => {
     } finally {
       rmSync(tmpHome, { recursive: true, force: true });
     }
+  });
+});
+
+describe("Git Repo & Commit Diff Source", () => {
+  it("inspects the current repository commits and extracts a commit diff with message as declared intent", () => {
+    const repo = inspectGitRepo(process.cwd(), 10);
+    expect(repo.name).toBe("diffgloss");
+    expect(repo.commits.length).toBeGreaterThanOrEqual(1);
+
+    const latest = repo.commits[0]!;
+    const extracted = extractRepoDiff(process.cwd(), {
+      mode: "commit",
+      sha: latest.sha,
+    });
+    expect(extracted.raw_diff.length).toBeGreaterThan(0);
+    expect(extracted.declared_intent_ref).toBe("commit_message");
+    expect(extracted.declared_intent).toContain(latest.subject);
+  });
+
+  it("rejects flag-injection git refs cleanly", () => {
+    expect(() =>
+      extractRepoDiff(process.cwd(), { mode: "range", range: "--exec=evil" }),
+    ).toThrow();
   });
 });

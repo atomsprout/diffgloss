@@ -3,6 +3,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { discoverRuleDocs, loadConfig } from "./config/loader.ts";
+import {
+  extractRepoDiff,
+  resolveGitTopLevel,
+} from "./diff/git-source.ts";
 import { defaultGoldenCasesPath, runGoldenEvalSuite } from "./eval/harness.ts";
 import {
   exportRdjsonl,
@@ -659,6 +663,63 @@ async function runEval(args: string[]): Promise<void> {
   }
 }
 
+async function runUi(args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const config = loadConfig(cwd, buildConfigOverrides(args));
+  const outHtml = getFlagValue(args, "--out") ?? ".diffgloss/report.html";
+  const outJson = getFlagValue(args, "--json-out") ?? ".diffgloss/ledger.json";
+  const port = Number.parseInt(getFlagValue(args, "--port") ?? "4317", 10);
+
+  // If user passed explicit diff args or --diff, honor them; otherwise auto-load working tree or latest commit!
+  const positional = stripFlags(
+    args,
+    new Set(["--diff", "--base", "--intent", "--intent-file", "--title", "--out", "--json-out", "--port", "--repo"]),
+    new Set(["--serve"]),
+  );
+  const targetRepo = getFlagValue(args, "--repo") ?? cwd;
+
+  if (positional.length > 0 || args.includes("--diff")) {
+    await runInspectOrExplain("inspect", [...args, "--serve"]);
+    return;
+  }
+
+  const root = resolveGitTopLevel(targetRepo) ?? cwd;
+  let extracted = extractRepoDiff(root, { mode: "working" });
+  if (!extracted.raw_diff.trim()) {
+    try {
+      extracted = extractRepoDiff(root, { mode: "commit", sha: "HEAD" });
+    } catch {
+      // Empty repo with no commits yet — still start UI so user can pick another repo
+    }
+  }
+
+  const ledger = buildInitialLedger(extracted.raw_diff, {
+    cwd: root,
+    title: extracted.title,
+    declaredIntent: extracted.declared_intent,
+    declaredIntentRef: extracted.declared_intent_ref,
+    source: {
+      repo: path.basename(root),
+      base_ref: extracted.base_ref,
+      head_ref: extracted.head_ref,
+      diff_args: extracted.diff_args,
+    },
+    splitLargeHunks: config.split_large_hunks,
+    subhunkLineThreshold: config.subhunk_line_threshold,
+    ignorePatterns: config.ignore,
+  });
+
+  writeAllOutputs(ledger, { outJson, outHtml, liveServer: false });
+  startPreviewServer({
+    port,
+    cwd: root,
+    ledger,
+    jsonOutPath: outJson,
+    htmlOutPath: outHtml,
+    config,
+  });
+}
+
 async function main(): Promise<void> {
   const [, , cmd, ...rest] = process.argv;
   if (!cmd || cmd === "-h" || cmd === "--help") {
@@ -667,7 +728,7 @@ async function main(): Promise<void> {
   }
   switch (cmd) {
     case "ui":
-      await runInspectOrExplain("inspect", [...rest, "--serve"]);
+      await runUi(rest);
       break;
     case "inspect":
       await runInspectOrExplain("inspect", rest);
