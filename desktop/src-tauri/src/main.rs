@@ -28,6 +28,49 @@ fn wait_for_port(port: u16, timeout: Duration) -> bool {
     false
 }
 
+fn build_enriched_path() -> String {
+    let existing = std::env::var("PATH").unwrap_or_default();
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+
+    #[cfg(target_os = "windows")]
+    let sep = ";";
+    #[cfg(not(target_os = "windows"))]
+    let sep = ":";
+
+    let mut extras: Vec<String> = Vec::new();
+    if !home.is_empty() {
+        #[cfg(target_os = "windows")]
+        {
+            extras.push(format!("{}\\.local\\bin", home));
+            extras.push(format!("{}\\.bun\\bin", home));
+            extras.push(format!("{}\\AppData\\Roaming\\npm", home));
+            extras.push(format!("{}\\AppData\\Local\\Programs\\Git\\cmd", home));
+            extras.push("C:\\Program Files\\Git\\cmd".to_string());
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            extras.push(format!("{}/.local/bin", home));
+            extras.push(format!("{}/.bun/bin", home));
+            extras.push(format!("{}/.cargo/bin", home));
+            extras.push(format!("{}/.npm-global/bin", home));
+            extras.push(format!("{}/.volta/bin", home));
+            extras.push("/opt/homebrew/bin".to_string());
+            extras.push("/opt/homebrew/sbin".to_string());
+            extras.push("/usr/local/bin".to_string());
+        }
+    }
+
+    let mut parts: Vec<String> = Vec::new();
+    for p in extras.into_iter().chain(existing.split(sep).map(|s| s.to_string())) {
+        if !p.is_empty() && !parts.contains(&p) {
+            parts.push(p);
+        }
+    }
+    parts.join(sep)
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -35,10 +78,12 @@ fn main() {
         .setup(|app| {
             let port = pick_free_port();
             let port_str = port.to_string();
+            let enriched_path = build_enriched_path();
 
             let sidecar_cmd = app
                 .shell()
                 .sidecar("diffgloss-engine")?
+                .env("PATH", enriched_path)
                 .args(["ui", "--port", &port_str]);
             let (_rx, child) = sidecar_cmd.spawn()?;
 

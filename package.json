@@ -1,6 +1,6 @@
 {
   "name": "diffgloss",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Explainability-first code review ledger: verifiable per-hunk coverage, evidence-backed explanations, symmetric-proof review, and interactive browser diff tours.",
   "license": "Apache-2.0",
   "repository": {

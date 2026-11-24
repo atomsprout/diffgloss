@@ -171,7 +171,7 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
 
     if (req.method === "GET" && url.pathname === "/api/health") {
       res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, repo: currentRepoPath, version: "0.3.0" }));
+      res.end(JSON.stringify({ ok: true, repo: currentRepoPath, version: "0.3.1" }));
       return;
     }
 

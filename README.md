@@ -6,18 +6,27 @@
 </p>
 
 <p align="center">
-  <a href="https://atomsprout.com/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.com%2Fdiffgloss-38bdf8.svg" alt="GitHub Pages" /></a>
-  <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0" />
-  <img src="https://img.shields.io/badge/runtime-Node%2020%2B%20%7C%20Bun%201.2%2B-3fb950.svg" alt="Runtime: Node 20+ | Bun 1.2+" />
-  <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-8957e5.svg" alt="Zero Runtime Dependencies" />
-  <img src="https://img.shields.io/badge/schema-diffgloss.explanation%2Fv0-d29922.svg" alt="Schema v0" />
+  <a href="https://atomsprout.com/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.com%2Fdiffgloss-d97706.svg" alt="GitHub Pages" /></a>
+  <a href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/desktop-macOS%20%26%20Windows%20v0.3.1-c2410c.svg" alt="Desktop v0.3.1" /></a>
+  <a href="https://github.com/atomsprout/diffgloss/actions/workflows/ci.yml"><img src="https://github.com/atomsprout/diffgloss/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/license-Apache--2.0-15803d.svg" alt="License: Apache-2.0" />
+  <img src="https://img.shields.io/badge/runtime-Node%2020%2B%20%7C%20Bun%201.2%2B-0f766e.svg" alt="Runtime: Node 20+ | Bun 1.2+" />
+  <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-b45309.svg" alt="Zero Runtime Dependencies" />
 </p>
 
 <p align="center">
   <strong><a href="https://atomsprout.com/diffgloss/">✦ Explore the Interactive 3D Site &amp; Live Demo ↗</a></strong>
   &nbsp;·&nbsp;
+  <strong><a href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.1">⬇ Download Native Desktop App (macOS / Windows)</a></strong>
+  &nbsp;·&nbsp;
   <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
+
+| Platform | Native Installer (v0.3.1 · Zero Dependencies) |
+|---|---|
+| **macOS Apple Silicon (M1–M4)** | [`Diffgloss_0.3.1_aarch64.dmg`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_aarch64.dmg) |
+| **macOS Intel (x86_64)** | [`Diffgloss_0.3.1_x64.dmg`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64.dmg) |
+| **Windows x64** | [`Diffgloss_0.3.1_x64-setup.exe`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64-setup.exe) · [`Diffgloss_0.3.1_x64_en-US.msi`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64_en-US.msi) |
 
 ---
 
@@ -39,10 +48,10 @@ Diffgloss treats review comprehension as a **verifiable ledger**. Every hunk (an
 
 ```mermaid
 flowchart LR
-  classDef input fill:#1f6feb,stroke:#58a6ff,color:#ffffff,font-weight:bold
-  classDef det fill:#238636,stroke:#3fb950,color:#ffffff,font-weight:bold
-  classDef prov fill:#8957e5,stroke:#bc8cff,color:#ffffff,font-weight:bold
-  classDef llm fill:#d29922,stroke:#f2cc60,color:#0d1117,font-weight:bold
+  classDef input fill:#b45309,stroke:#f59e0b,color:#ffffff,font-weight:bold
+  classDef det fill:#15803d,stroke:#22c55e,color:#ffffff,font-weight:bold
+  classDef prov fill:#0f766e,stroke:#14b8a6,color:#ffffff,font-weight:bold
+  classDef llm fill:#d97706,stroke:#fbbf24,color:#111111,font-weight:bold
   classDef review fill:#da3633,stroke:#f85149,color:#ffffff,font-weight:bold
   classDef out fill:#0969da,stroke:#79c0ff,color:#ffffff,font-weight:bold
 
@@ -278,7 +287,7 @@ Diffgloss ships with a 12-case multi-language golden evaluation suite (`evals/go
 
 ```bash
 bun run typecheck   # Strict TypeScript (erasableSyntaxOnly) — 0 errors
-bun test            # 28 unit & integration tests (111 assertions)
+bun test            # 31 unit & integration tests (124 assertions)
 node dist/cli.js eval
 DEEPSEEK_API_KEY=... node dist/cli.js eval --provider deepseek --model deepseek-chat
 ```

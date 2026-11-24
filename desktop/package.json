@@ -1,6 +1,6 @@
 {
   "name": "diffgloss-desktop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Native macOS & Windows Tauri v2 desktop wrapper for Diffgloss.",
   "scripts": {

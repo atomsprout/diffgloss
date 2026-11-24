@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
 export interface CommitSummary {
@@ -44,14 +44,23 @@ function runGit(cwd: string, args: string[]): string {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 50 * 1024 * 1024,
+    windowsHide: true,
   });
 }
 
 export function resolveGitTopLevel(dirPath: string): string | null {
   const abs = path.resolve(dirPath);
   if (!existsSync(abs)) return null;
+  let targetDir = abs;
   try {
-    return runGit(abs, ["rev-parse", "--show-toplevel"]).trim();
+    if (statSync(abs).isFile()) {
+      targetDir = path.dirname(abs);
+    }
+  } catch {
+    return null;
+  }
+  try {
+    return runGit(targetDir, ["rev-parse", "--show-toplevel"]).trim();
   } catch {
     return null;
   }

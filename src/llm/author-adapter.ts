@@ -1,4 +1,6 @@
 import { execFile, execFileSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 import type { AuthorCliKind, ProviderDialect } from "../schema/types.ts";
 import { estimateTokens } from "./budget.ts";
 import type { LLMClient, LLMRequest, LLMResponse } from "./types.ts";
@@ -8,12 +10,56 @@ export interface DetectedAuthorClis {
   codex: { available: boolean; version?: string };
 }
 
+/**
+ * macOS GUI apps launched from Finder receive a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin)
+ * that omits ~/.local/bin, /opt/homebrew/bin, ~/.bun/bin, etc. Augment PATH so local
+ * coding-agent CLIs (`codex`, `claude`) are reliably discovered from Desktop & CLI alike.
+ */
+export function buildCliEnv(
+  baseEnv: NodeJS.ProcessEnv = process.env,
+  homeDir: string = os.homedir(),
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  const sep = platform === "win32" ? ";" : ":";
+  const currentPath = baseEnv.PATH ?? baseEnv.Path ?? "";
+  const extraDirs =
+    platform === "win32"
+      ? [
+          path.join(homeDir, ".local", "bin"),
+          path.join(homeDir, ".bun", "bin"),
+          path.join(homeDir, "AppData", "Roaming", "npm"),
+        ]
+      : [
+          path.join(homeDir, ".local", "bin"),
+          path.join(homeDir, ".bun", "bin"),
+          path.join(homeDir, ".cargo", "bin"),
+          path.join(homeDir, ".npm-global", "bin"),
+          path.join(homeDir, ".volta", "bin"),
+          "/opt/homebrew/bin",
+          "/opt/homebrew/sbin",
+          "/usr/local/bin",
+        ];
+
+  const merged: string[] = [];
+  for (const dir of [...extraDirs, ...currentPath.split(sep)]) {
+    if (dir && !merged.includes(dir)) merged.push(dir);
+  }
+  const nextPath = merged.join(sep);
+  return {
+    ...baseEnv,
+    PATH: nextPath,
+    ...(platform === "win32" ? { Path: nextPath } : {}),
+  };
+}
+
 function probeBinary(bin: string, versionArg = "--version"): { available: boolean; version?: string } {
   try {
     const out = execFileSync(bin, [versionArg], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 3000,
+      env: buildCliEnv(),
+      windowsHide: true,
     }).trim();
     return { available: true, version: out.split(/\r?\n/)[0] };
   } catch {
@@ -50,7 +96,14 @@ function spawnTextWithStdin(
     const child = execFile(
       bin,
       args,
-      { cwd, encoding: "utf8", maxBuffer: 15 * 1024 * 1024, timeout: timeoutMs },
+      {
+        cwd,
+        encoding: "utf8",
+        maxBuffer: 15 * 1024 * 1024,
+        timeout: timeoutMs,
+        env: buildCliEnv(),
+        windowsHide: true,
+      },
       (err, stdout, stderr) => {
         if (err) {
           reject(

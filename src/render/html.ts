@@ -38,54 +38,56 @@ export function renderHtmlReport(
   <title>${title} — Diffgloss</title>
   <style>
     :root {
-      --bg: #0d1117;
-      --bg-elev: #161b22;
-      --bg-card: #11161d;
-      --border: #2a323d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #58a6ff;
-      --green: #3fb950;
-      --green-bg: rgba(63, 185, 80, 0.14);
-      --amber: #d29922;
-      --amber-bg: rgba(210, 153, 34, 0.16);
-      --red: #f85149;
-      --red-bg: rgba(248, 81, 73, 0.15);
-      --purple: #bc8cff;
-      --purple-bg: rgba(188, 140, 255, 0.14);
-      --slate: #8b949e;
-      --slate-bg: rgba(139, 148, 158, 0.16);
-      --diff-add-bg: rgba(46, 160, 67, 0.16);
-      --diff-add-num: rgba(46, 160, 67, 0.25);
-      --diff-del-bg: rgba(248, 81, 73, 0.16);
-      --diff-del-num: rgba(248, 81, 73, 0.25);
-      --diff-hl-bg: rgba(88, 166, 255, 0.26);
+      --bg: #0f0f10;
+      --bg-elev: #18181b;
+      --bg-card: #141416;
+      --border: #2c2c31;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --accent: #d97706;
+      --accent-soft: rgba(217, 119, 6, 0.16);
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.14);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.16);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.15);
+      --purple: #14b8a6;
+      --purple-bg: rgba(20, 184, 166, 0.14);
+      --slate: #a8a29e;
+      --slate-bg: rgba(168, 162, 158, 0.14);
+      --diff-add-bg: rgba(34, 197, 94, 0.14);
+      --diff-add-num: rgba(34, 197, 94, 0.22);
+      --diff-del-bg: rgba(239, 68, 68, 0.16);
+      --diff-del-num: rgba(239, 68, 68, 0.24);
+      --diff-hl-bg: rgba(245, 158, 11, 0.24);
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     [data-theme="light"] {
-      --bg: #f6f8fa;
+      --bg: #faf8f4;
       --bg-elev: #ffffff;
-      --bg-card: #ffffff;
-      --border: #d0d7de;
-      --text: #1f2328;
-      --muted: #57606a;
-      --accent: #0969da;
-      --green: #1a7f37;
-      --green-bg: rgba(26, 127, 55, 0.1);
-      --amber: #9a6700;
-      --amber-bg: rgba(154, 103, 0, 0.12);
-      --red: #cf222e;
-      --red-bg: rgba(207, 34, 46, 0.1);
-      --purple: #8250df;
-      --purple-bg: rgba(130, 80, 223, 0.1);
-      --slate: #57606a;
-      --slate-bg: rgba(87, 96, 106, 0.1);
-      --diff-add-bg: #e6ffec;
-      --diff-add-num: #ccffd8;
-      --diff-del-bg: #ffebe9;
-      --diff-del-num: #ffd7d5;
-      --diff-hl-bg: rgba(9, 105, 218, 0.16);
+      --bg-card: #f5f2eb;
+      --border: #e5dfd3;
+      --text: #1c1917;
+      --muted: #57534e;
+      --accent: #c2410c;
+      --accent-soft: rgba(194, 65, 12, 0.12);
+      --green: #15803d;
+      --green-bg: rgba(21, 128, 61, 0.11);
+      --amber: #b45309;
+      --amber-bg: rgba(180, 83, 9, 0.13);
+      --red: #b91c1c;
+      --red-bg: rgba(185, 28, 28, 0.1);
+      --purple: #0f766e;
+      --purple-bg: rgba(15, 118, 110, 0.11);
+      --slate: #57534e;
+      --slate-bg: rgba(87, 83, 78, 0.1);
+      --diff-add-bg: #dcfce7;
+      --diff-add-num: #bbf7d0;
+      --diff-del-bg: #fee2e2;
+      --diff-del-num: #fecaca;
+      --diff-hl-bg: rgba(217, 119, 6, 0.2);
     }
     * { box-sizing: border-box; }
     body {
@@ -151,7 +153,7 @@ export function renderHtmlReport(
     .btn:hover { border-color: var(--accent); }
     .btn.active {
       border-color: var(--accent);
-      background: rgba(88, 166, 255, 0.16);
+      background: var(--accent-soft);
       color: var(--accent);
     }
     .coverage-bar {
@@ -304,7 +306,7 @@ export function renderHtmlReport(
     .b-green { background: var(--green-bg); color: var(--green); border-color: rgba(63, 185, 80, 0.35); }
     .b-red { background: var(--red-bg); color: var(--red); border-color: rgba(248, 81, 73, 0.35); }
     .b-amber { background: var(--amber-bg); color: var(--amber); border-color: rgba(210, 153, 34, 0.35); }
-    .b-purple { background: var(--purple-bg); color: var(--purple); border-color: rgba(188, 140, 255, 0.35); }
+    .b-purple { background: var(--purple-bg); color: var(--purple); border-color: rgba(20, 184, 166, 0.38); }
     .b-slate { background: var(--slate-bg); color: var(--slate); border-color: var(--border); }
     .evidence-grid {
       display: grid;
@@ -447,7 +449,7 @@ export function renderHtmlReport(
       position: fixed;
       inset: 0;
       z-index: 90;
-      background: rgba(13, 17, 23, 0.85);
+      background: rgba(15, 15, 16, 0.88);
       border: 3px dashed var(--accent);
       display: none;
       align-items: center;
@@ -578,12 +580,12 @@ export function renderHtmlReport(
       font-size: 13px;
     }
     .commit-row:last-child { border-bottom: none; }
-    .commit-row:hover { background: rgba(88, 166, 255, 0.12); }
+    .commit-row:hover { background: var(--accent-soft); }
     .commit-sha {
       font-family: var(--font-mono);
       font-size: 11px;
       color: var(--accent);
-      background: rgba(88, 166, 255, 0.14);
+      background: var(--accent-soft);
       padding: 2px 6px;
       border-radius: 4px;
       flex-shrink: 0;
@@ -616,7 +618,7 @@ export function renderHtmlReport(
         <button class="btn" id="self-check-toggle" title="Hide explanations on high-risk hunks until revealed">Self-Check: Off</button>
         <span class="badge b-slate" id="understood-counter">Understood 0/0</span>
         <button class="btn" id="repo-picker-btn" title="Switch local git repository, working tree diff, branch range, or any commit">📂 Repo / Commit</button>
-        <button class="btn btn-primary" id="quick-explain-btn" title="Run AI explanation using saved model settings">▶ Explain</button>
+        <button class="btn btn-primary" id="quick-explain-btn" title="Stream Role A Explanation + Role B Independent Line Audit">▶ Explain &amp; Audit</button>
         <button class="btn" id="settings-btn" title="Configure any LLM provider, API key & re-run in page">⚙ Models</button>
         <button class="btn" id="download-json-btn">Export JSON</button>
         <button class="btn" id="theme-toggle">Theme</button>
@@ -932,16 +934,20 @@ export function renderHtmlReport(
           }
         }
 
+        const omittedSet = new Set(hunk.audit?.omitted_lines || []);
         return (
           '<table class="diff-table" data-hunk-table="' + esc(hunk.id) + '"><tbody>' +
           pairs.map((p) => {
             if (p.left && p.left.type === "hdr") {
               return '<tr class="diff-line line-hdr"><td class="diff-num"></td><td colspan="3" class="diff-code">' + esc(p.left.text) + "</td></tr>";
             }
-            const lCls = p.left?.type === "del" ? "line-del" : "";
-            const rCls = p.right?.type === "add" ? "line-add" : "";
+            const lOmitted = p.left?.type === "del" && omittedSet.has(p.left.oldNum);
+            const rOmitted = p.right?.type === "add" && omittedSet.has(p.right.newNum);
+            const lCls = (p.left?.type === "del" ? "line-del" : "") + (lOmitted ? " line-omitted" : "");
+            const rCls = (p.right?.type === "add" ? "line-add" : "") + (rOmitted ? " line-omitted" : "");
             return (
-              '<tr class="diff-line" data-old="' + (p.left?.oldNum ?? "") + '" data-new="' + (p.right?.newNum ?? "") + '">' +
+              '<tr class="diff-line' + (lOmitted || rOmitted ? " line-omitted" : "") + '" data-old="' + (p.left?.oldNum ?? "") + '" data-new="' + (p.right?.newNum ?? "") + '"' +
+              (lOmitted || rOmitted ? ' title="Omitted by author explanation — flagged by independent Line Auditor"' : "") + '>' +
               '<td class="diff-num ' + lCls + '">' + (p.left?.oldNum ?? "") + "</td>" +
               '<td class="diff-split-code ' + lCls + '">' + esc(p.left ? p.left.text.replace(/^-/, " ") : "") + "</td>" +
               '<td class="diff-num ' + rCls + '">' + (p.right?.newNum ?? "") + "</td>" +
@@ -1480,8 +1486,9 @@ export function renderHtmlReport(
           });
           const data = await res.json();
           if (!data.ok) {
-            setRepoStatus("err", data.error || "Failed to load diff");
-            return;
+            const errMsg = data.error || "Failed to load diff";
+            setRepoStatus("err", errMsg);
+            return { ok: false, error: errMsg };
           }
           ledger = data.ledger;
           activeFilter = "all";
@@ -1491,8 +1498,10 @@ export function renderHtmlReport(
           renderHeader();
           renderBody();
           repoModal.classList.remove("open");
+          return { ok: true, ledger };
         } catch (err) {
           setRepoStatus("err", err.message);
+          return { ok: false, error: err.message };
         }
       }
 
@@ -1561,8 +1570,8 @@ export function renderHtmlReport(
             const frames = buf.split("\\n\\n");
             buf = frames.pop() || "";
             for (const frame of frames) {
-              const evMatch = /^event:\s*(.+)$/m.exec(frame);
-              const dataMatch = /^data:\s*(.+)$/m.exec(frame);
+              const evMatch = /^event:\\s*(.+)$/m.exec(frame);
+              const dataMatch = /^data:\\s*(.+)$/m.exec(frame);
               if (!evMatch || !dataMatch) continue;
               const evName = evMatch[1].trim();
               const data = JSON.parse(dataMatch[1]);
@@ -1608,7 +1617,7 @@ export function renderHtmlReport(
           }
         });
         btn.disabled = false;
-        btn.textContent = "▶ Explain";
+        btn.textContent = "▶ Explain & Audit";
       });
 
       // Native Tauri Desktop Drag-and-Drop bridge (when running inside Diffgloss.app)
@@ -1619,11 +1628,29 @@ export function renderHtmlReport(
       window.__diffglossLoadRepo = async function (repoPath) {
         window.__diffglossSetDropActive(false);
         if (!repoPath || !LIVE_SERVER) return;
+        const banner = document.getElementById("stream-banner");
+        const msgEl = document.getElementById("stream-msg");
+        const stepEl = document.getElementById("stream-step");
+        banner.classList.add("active");
+        msgEl.textContent = "Loading dropped path: " + repoPath + "...";
+        stepEl.textContent = "git";
         document.getElementById("repo-path-input").value = repoPath;
-        await loadDiffSelection({ repo_path: repoPath, mode: "working" });
-        // If working tree is clean (0 hunks), automatically load latest commit HEAD!
-        if (ledger.coverage.total === 0) {
-          await loadDiffSelection({ repo_path: repoPath, mode: "commit", sha: "HEAD" });
+        try {
+          const r1 = await loadDiffSelection({ repo_path: repoPath, mode: "working" });
+          if (!r1?.ok) {
+            throw new Error(r1?.error || "Not a valid Git repository");
+          }
+          if (ledger.coverage.total === 0) {
+            const r2 = await loadDiffSelection({ repo_path: repoPath, mode: "commit", sha: "HEAD" });
+            if (!r2?.ok) throw new Error(r2?.error || "Could not load HEAD commit");
+          }
+          msgEl.textContent = "Loaded " + (ledger.source?.repo || repoPath) + " (" + ledger.coverage.total + " hunks) — click '▶ Explain & Audit' to analyze.";
+          stepEl.textContent = "ready";
+        } catch (err) {
+          msgEl.textContent = "Could not load dropped path: " + (err?.message || String(err));
+          stepEl.textContent = "error";
+        } finally {
+          setTimeout(() => banner.classList.remove("active"), 3200);
         }
       };
 

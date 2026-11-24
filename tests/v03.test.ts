@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_CONFIG } from "../src/config/loader.ts";
-import { resolvePreferredAuthorCli } from "../src/llm/author-adapter.ts";
+import { resolveGitTopLevel } from "../src/diff/git-source.ts";
+import {
+  buildCliEnv,
+  resolvePreferredAuthorCli,
+} from "../src/llm/author-adapter.ts";
 import { MockLLMClient } from "../src/llm/providers.ts";
 import {
   auditLedgerLines,
@@ -12,9 +16,10 @@ import {
 import { computeHunkCacheKey, HunkResultCache } from "../src/pipeline/cache.ts";
 import { explainLedger } from "../src/pipeline/explainer.ts";
 import { buildInitialLedger } from "../src/pipeline/ledger.ts";
+import { renderHtmlReport } from "../src/render/html.ts";
 import { validateLedger } from "../src/schema/validate.ts";
 
-describe("AuthorAdapter CLI Resolution", () => {
+describe("AuthorAdapter CLI Resolution & Desktop Environment", () => {
   it("resolves preferred author CLI cleanly with graceful fallback", () => {
     const both = {
       claude: { available: true, version: "2.1.329" },
@@ -27,6 +32,43 @@ describe("AuthorAdapter CLI Resolution", () => {
     expect(resolvePreferredAuthorCli("auto", both)).toBe("codex-cli");
     expect(resolvePreferredAuthorCli("claude-cli", both)).toBe("claude-cli");
     expect(resolvePreferredAuthorCli("auto", none)).toBeNull();
+  });
+
+  it("augments minimal Finder GUI PATH with user & Homebrew CLI directories", () => {
+    const macEnv = buildCliEnv({ PATH: "/usr/bin:/bin" }, "/Users/alice", "darwin");
+    expect(macEnv.PATH).toContain("/Users/alice/.local/bin");
+    expect(macEnv.PATH).toContain("/opt/homebrew/bin");
+    expect(macEnv.PATH).toContain("/usr/bin");
+
+    const winEnv = buildCliEnv({ PATH: "C:\\Windows\\System32" }, "C:\\Users\\alice", "win32");
+    expect(winEnv.PATH).toContain("npm");
+    expect(winEnv.Path).toBe(winEnv.PATH);
+  });
+
+  it("resolves git repo root when a single file inside the repo is dropped", () => {
+    const fileInsideRepo = path.resolve("package.json");
+    const root = resolveGitTopLevel(fileInsideRepo);
+    expect(root).toBeTruthy();
+    expect(path.resolve(root!)).toBe(path.resolve("."));
+  });
+
+  it("renders warm editorial workbench HTML with split-diff omission highlight & valid SSE regexes", () => {
+    const diff = `diff --git a/src/demo.ts b/src/demo.ts
+--- a/src/demo.ts
++++ b/src/demo.ts
+@@ -1,2 +1,3 @@
+ export function f() {
++  return 42;
+ }
+`;
+    const ledger = buildInitialLedger(diff);
+    const html = renderHtmlReport(ledger, { liveServer: true });
+    expect(html).toContain("▶ Explain &amp; Audit");
+    expect(html).toContain("/^event:\\s*(.+)$/m");
+    expect(html).toContain("/^data:\\s*(.+)$/m");
+    expect(html).toContain("lOmitted");
+    expect(html).toContain("#0f0f10");
+    expect(html).toContain("#faf8f4");
   });
 });
 

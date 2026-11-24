@@ -7,17 +7,26 @@
 
 <p align="center">
   <a href="https://atomsprout.com/diffgloss/"><img src="https://img.shields.io/badge/website-atomsprout.com%2Fdiffgloss-d97706.svg" alt="GitHub Pages" /></a>
+  <a href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/desktop-macOS%20%26%20Windows%20v0.3.1-c2410c.svg" alt="Desktop v0.3.1" /></a>
+  <a href="https://github.com/atomsprout/diffgloss/actions/workflows/ci.yml"><img src="https://github.com/atomsprout/diffgloss/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/license-Apache--2.0-15803d.svg" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/runtime-Node%2020%2B%20%7C%20Bun%201.2%2B-0f766e.svg" alt="Runtime: Node 20+ | Bun 1.2+" />
-  <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-c2410c.svg" alt="零运行时依赖" />
-  <img src="https://img.shields.io/badge/schema-diffgloss.explanation%2Fv0-b45309.svg" alt="Schema v0" />
+  <img src="https://img.shields.io/badge/dependencies-0%20runtime%20deps-b45309.svg" alt="零运行时依赖" />
 </p>
 
 <p align="center">
   <strong><a href="https://atomsprout.com/diffgloss/">✦ 访问 3D 交互式官网与在线演示 ↗</a></strong>
   &nbsp;·&nbsp;
+  <strong><a href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.1">⬇ 下载原生桌面应用（macOS / Windows）</a></strong>
+  &nbsp;·&nbsp;
   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
+
+| 平台 | 原生桌面安装包（v0.3.1 · 免装 Node/Bun） |
+|---|---|
+| **macOS Apple Silicon (M1–M4)** | [`Diffgloss_0.3.1_aarch64.dmg`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_aarch64.dmg) |
+| **macOS Intel (x86_64)** | [`Diffgloss_0.3.1_x64.dmg`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64.dmg) |
+| **Windows x64** | [`Diffgloss_0.3.1_x64-setup.exe`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64-setup.exe) · [`Diffgloss_0.3.1_x64_en-US.msi`](https://github.com/atomsprout/diffgloss/releases/download/v0.3.1/Diffgloss_0.3.1_x64_en-US.msi) |
 
 ---
 
@@ -241,7 +250,7 @@ node dist/cli.js hooks init --strict
 
 ```bash
 bun run typecheck   # 严格 TypeScript 类型检查（erasableSyntaxOnly）— 0 错误
-bun test            # 28 项单元与集成测试（111 个断言）
+bun test            # 31 项单元与集成测试（124 个断言）
 node dist/cli.js eval
 DEEPSEEK_API_KEY=... node dist/cli.js eval --provider deepseek --model deepseek-chat
 ```

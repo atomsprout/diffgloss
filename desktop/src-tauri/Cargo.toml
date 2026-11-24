@@ -1,6 +1,6 @@
 [package]
 name = "diffgloss-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "Diffgloss native desktop workbench for macOS and Windows"
 authors = ["atomsprout"]
 license = "Apache-2.0"

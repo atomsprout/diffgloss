@@ -1,0 +1,39 @@
+name: CI (Typecheck, Tests & Golden Eval)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Strict TypeScript typecheck
+        run: bun run typecheck
+
+      - name: Build dist/ for Node & Bun
+        run: bun run build
+
+      - name: Validate explanation JSON Schema
+        run: node -e 'JSON.parse(require("fs").readFileSync("schemas/explanation.schema.json", "utf8")); console.log("Schema JSON valid")'
+
+      - name: Run Unit & Integration Tests
+        run: bun test
+
+      - name: Run 12-Case Golden Evaluation Suite
+        run: node dist/cli.js eval
