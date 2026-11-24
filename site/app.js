@@ -1,4 +1,31 @@
 (function () {
+  // 0. Dark / Light Theme toggle (respects saved preference or prefers-color-scheme)
+  const themeBtn = document.getElementById("theme-toggle");
+  const THEME_KEY = "diffgloss.site.theme";
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    if (themeBtn) {
+      themeBtn.textContent = theme === "light" ? "☾ Dark" : "☀ Light";
+    }
+  }
+
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  const initialTheme =
+    savedTheme === "light" || savedTheme === "dark"
+      ? savedTheme
+      : window.matchMedia?.("(prefers-color-scheme: light)").matches
+        ? "light"
+        : "dark";
+  applyTheme(initialTheme);
+
+  themeBtn?.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    const next = cur === "light" ? "dark" : "light";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+
   // 1. 3D Stage mouse parallax + Raw/Gloss mode toggle
   const stage = document.getElementById("stage-3d");
   const stageWrap = stage?.parentElement;
@@ -223,7 +250,7 @@
                    <span>Inspect the diff below first, then reveal the explanation.</span>
                    <button class="mini-btn active" id="demo-reveal-btn">Reveal What</button>
                  </div>`
-              : `<div style="font-size:13px;color:#e2e8f0">${d.what}</div>
+              : `<div class="demo-ev-text">${d.what}</div>
                  <button class="demo-cite-btn" id="demo-cite-btn">⌖ Highlight ${d.cite.label}</button>`
           }
         </div>
@@ -232,7 +259,7 @@
             <span>Why (Provenance)</span>
             <span class="chip ${d.whySource === "missing" ? "chip-red" : "chip-green"}">source: ${d.whySource}</span>
           </div>
-          <div style="font-size:13px;color:#e2e8f0">${d.why}</div>
+          <div class="demo-ev-text">${d.why}</div>
         </div>
       </div>
       <div class="demo-diff">

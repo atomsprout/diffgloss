@@ -15,6 +15,8 @@
 
 <p align="center">
   <strong><a href="https://atomsprout.com/diffgloss/">✦ Explore the Interactive 3D Site &amp; Live Demo ↗</a></strong>
+  &nbsp;·&nbsp;
+  <strong>English</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
 ---
