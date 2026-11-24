@@ -13,6 +13,13 @@ export { splitLargeHunks } from "./diff/subhunk.ts";
 export { detectCrossFileMoves } from "./diff/moves.ts";
 export { buildInitialLedger } from "./pipeline/ledger.ts";
 export { explainLedger, estimateExplainCost } from "./pipeline/explainer.ts";
+export { auditLedgerLines, extractChangedLinesWithNumbers } from "./pipeline/auditor.ts";
+export { HunkResultCache, computeHunkCacheKey } from "./pipeline/cache.ts";
+export {
+  detectInstalledAuthorClis,
+  resolvePreferredAuthorCli,
+  createAuthorCliClient,
+} from "./llm/author-adapter.ts";
 export { runIntegrityChecks, attachFindingsToHunks } from "./pipeline/integrity.ts";
 export { loadConfig, discoverRuleDocs } from "./config/loader.ts";
 export {

@@ -155,6 +155,8 @@ stateDiagram-v2
 
 运行 `diffgloss ui`（或离线打开生成的 `.diffgloss/report.html`）：
 
+- **原生桌面 App（`desktop/`，Tauri v2 — macOS & Windows）**：直接把任意本机 Git 仓库文件夹拖进 `Diffgloss.app` 窗口即可秒开审查，内嵌独立编译引擎，无需额外安装 Node/Bun。
+- **双角色「写码 Agent 解释 → 独立逐行审计」**：**角色 A（解释者）**支持直接对接本机 **Codex CLI** / **Claude Code CLI**（复用会话上下文与自有额度）或独立 API 模型 A；**角色 B（独立审计者）**逐行核验每一条 `+`/`-` 改动（`verified` / `omission_detected` 直接高亮漏解释行 / `contradicted` 自动降级），配合 **SSE 实时进度流** 与 **`hunk_id` 本地缓存**秒级复开。
 - **仓库与提交工作台（`📂 Repo / Commit`）**：一键切换任意本机 Git 仓库、浏览最近/相邻仓库，查看 Working Tree / Staged / 分支区间，或直接点击历史中任意 Commit（自动将 Commit Message 载入 `Declared Intent`）。
 - **网页内零环境变量配模型（`⚙ Models`）**：内置 **DeepSeek、Anthropic Claude、OpenAI、Google Gemini、OpenRouter、Ollama（本地免 Key）、通义 Qwen、Kimi、智谱 GLM、自定义 OpenAI 兼容端点** 10 套一键预设；配置加密权限保存至 `~/.config/diffgloss/settings.json`（`chmod 600`），支持实时 **Test Connection** 与网页内一键 **▶ Run Explain Now**。
 - **高密度阅读效率**：覆盖率进度条与状态/风险/关键词筛选（`/`）、Unified / Split 双栏切换（`s`）、键盘导航（`j`/`k`/`u`）、点击 `file:line` 引用高亮对应 diff 行。
@@ -172,6 +174,16 @@ git clone https://github.com/atomsprout/diffgloss.git
 cd diffgloss
 bun install
 bun run build
+```
+
+### 0. 原生桌面应用（macOS / Windows · Tauri v2）
+
+```bash
+# 编译独立 diffgloss-engine 引擎并打包原生 macOS Diffgloss.app（或 Windows 安装包）
+cd desktop
+bun run build:all
+# -> desktop/src-tauri/target/release/bundle/macos/Diffgloss.app
+# 打开后将任意本地 Git 仓库文件夹直接拖进窗口即可开始 Review！
 ```
 
 ### 1. 零环境变量启动浏览器工作台（推荐）
@@ -229,7 +241,7 @@ node dist/cli.js hooks init --strict
 
 ```bash
 bun run typecheck   # 严格 TypeScript 类型检查（erasableSyntaxOnly）— 0 错误
-bun test            # 25 项单元与集成测试（91 个断言）
+bun test            # 28 项单元与集成测试（111 个断言）
 node dist/cli.js eval
 DEEPSEEK_API_KEY=... node dist/cli.js eval --provider deepseek --model deepseek-chat
 ```

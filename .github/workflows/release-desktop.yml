@@ -1,0 +1,60 @@
+name: Release Desktop App (macOS & Windows)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+          - platform: macos-15-intel
+            target: x86_64-apple-darwin
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./desktop/src-tauri -> target"
+
+      - name: Install dependencies & build CLI
+        run: bun install && bun run build
+
+      - name: Compile Diffgloss Engine Sidecar
+        run: bun run desktop/scripts/build-sidecar.ts
+
+      - name: Build Tauri v2 Desktop Bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Diffgloss ${{ github.ref_name }}"
+          releaseBody: "Native macOS & Windows Diffgloss Desktop Workbench (drag-and-drop any Git repository to review)."
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }}

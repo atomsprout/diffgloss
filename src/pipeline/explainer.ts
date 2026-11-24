@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import type { LoadedRuleDoc } from "../config/loader.ts";
 import { extractHunkContext } from "../diff/context.ts";
 import {
+  createAuthorCliClient,
+  resolvePreferredAuthorCli,
+} from "../llm/author-adapter.ts";
+import {
   BudgetExceededError,
   BudgetTracker,
   calculateUsageUsd,
@@ -22,6 +26,7 @@ import type {
   WhySource,
 } from "../schema/types.ts";
 import { computeCoverage, verifyHunkCitations } from "../schema/validate.ts";
+import { computeHunkCacheKey, HunkResultCache } from "./cache.ts";
 import { attachFindingsToHunks } from "./integrity.ts";
 
 const EXPLAINER_SYSTEM_PROMPT = `You are Diffgloss, an evidence-first code change explainer.
@@ -72,8 +77,10 @@ export interface ExplainOptions {
   ruleDocs?: LoadedRuleDoc[];
   dryRun?: boolean;
   runJudge?: boolean;
+  useCache?: boolean;
   clientOverride?: LLMClient;
   judgeClientOverride?: LLMClient;
+  onProgress?: (stage: string, done: number, total: number, message?: string) => void;
 }
 
 export interface DryRunEstimate {
@@ -236,15 +243,36 @@ export async function explainLedger(
     return ledger;
   }
 
-  const client =
-    options.clientOverride ??
-    createLLMClient({
+  let explainerMode: "author_cli" | "api_model" =
+    options.config.explainer_mode ?? "api_model";
+  let client = options.clientOverride;
+  let authorSessionId: string | undefined;
+
+  if (!client && explainerMode === "author_cli") {
+    const cliKind = resolvePreferredAuthorCli(options.config.author_cli ?? "auto");
+    if (cliKind) {
+      // Reuse discovered session_id if provenance matched a local Claude/Codex session
+      authorSessionId = ledger.hunks.find((h) => h.provenance?.session_id)?.provenance?.session_id;
+      client = createAuthorCliClient({
+        kind: cliKind,
+        cwd: options.cwd,
+        sessionId: authorSessionId,
+      });
+    } else {
+      // Graceful fallback to configured API model if neither claude nor codex is installed
+      explainerMode = "api_model";
+    }
+  }
+
+  if (!client) {
+    client = createLLMClient({
       provider: options.config.provider,
       model: options.config.model,
       baseUrl: options.config.base_url,
       apiKey: options.config.api_key,
       apiKeyEnv: options.config.api_key_env,
     });
+  }
 
   const runJudge =
     options.runJudge ?? options.config.effort === "deep";
@@ -267,14 +295,48 @@ export async function explainLedger(
     judgeClient?.model,
   );
 
+  // Check content-addressed hunk cache so unchanged hunks skip repeat LLM calls
+  const cache = options.useCache !== false ? new HunkResultCache(options.cwd) : null;
+  const explainerKey = `${explainerMode}:${client.provider}:${client.model}`;
+  const uncachedTargets: HunkRecord[] = [];
+  for (const h of targets) {
+    if (cache) {
+      const cKey = computeHunkCacheKey({
+        hunk: h,
+        declaredIntent: ledger.overview.declared_intent,
+        explainerKey,
+      });
+      const hit = cache.get(cKey);
+      if (hit && hit.what?.citations_valid) {
+        h.status = hit.status;
+        h.what = hit.what;
+        if (hit.why) h.why = hit.why;
+        h.explainer_meta = {
+          ...(hit.explainer_meta ?? { mode: explainerMode, adapter: client.provider }),
+          cached: true,
+        };
+        if (hit.audit) h.audit = hit.audit;
+        continue;
+      }
+    }
+    uncachedTargets.push(h);
+  }
+
   const ruleDocs = options.ruleDocs ?? [];
-  const batches = batchHunks(targets);
+  const batches = batchHunks(uncachedTargets);
   const hunkMap = new Map(ledger.hunks.map((h) => [h.id, h]));
   const existingQuestions = new Map(ledger.questions.map((q) => [q.id, q]));
   let qCounter = ledger.questions.length;
   const newGroups: ExplanationGroup[] = [];
   const behaviorSummaries: string[] = [];
   const extraFindings: AttachedFinding[] = [...(ledger.findings ?? [])];
+  let processedCount = targets.length - uncachedTargets.length;
+  options.onProgress?.(
+    "explaining",
+    processedCount,
+    targets.length,
+    processedCount > 0 ? `Loaded ${processedCount} hunk(s) from cache` : "Starting explanation...",
+  );
 
   for (const batch of batches) {
     const prompt = buildBatchPrompt(
@@ -307,6 +369,12 @@ export async function explainLedger(
         if (!hunk || hunk.status === "collapsed") continue;
 
         if (item.risk) hunk.risk = item.risk;
+        hunk.explainer_meta = {
+          mode: explainerMode,
+          adapter: `${client.provider}/${client.model}`,
+          session_id: authorSessionId,
+          cached: false,
+        };
 
         if (item.status === "explained" && item.what_text) {
           hunk.status = "explained";
@@ -475,6 +543,35 @@ Return JSON: {"what_text": "...", "citations": [{"path": "${broken.hunk.path}", 
           risk: g.risk ?? "low",
           hunk_ids: validIds,
         });
+      }
+
+      processedCount += batch.length;
+      options.onProgress?.(
+        "explaining",
+        Math.min(processedCount, targets.length),
+        targets.length,
+        `Explained ${Math.min(processedCount, targets.length)}/${targets.length} hunks via ${client.provider}`,
+      );
+
+      // Save validly explained hunks to disk cache
+      if (cache) {
+        for (const h of batch) {
+          if (h.status === "explained" && h.what?.citations_valid) {
+            cache.set({
+              cache_key: computeHunkCacheKey({
+                hunk: h,
+                declaredIntent: ledger.overview.declared_intent,
+                explainerKey,
+              }),
+              hunk_id: h.id,
+              saved_at: new Date().toISOString(),
+              status: h.status,
+              what: h.what,
+              why: h.why,
+              explainer_meta: h.explainer_meta,
+            });
+          }
+        }
       }
     } catch (err) {
       if (err instanceof BudgetExceededError) {

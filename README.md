@@ -161,6 +161,8 @@ Run `--serve` or open any generated `.diffgloss/report.html` offline (zero exter
 - **Clickable `file:line` Citations** that scroll to and highlight exact diff lines
 - **Self-Check Mode**: hides `What` on high-risk hunks until you click **Reveal What**, countering passive comprehension debt
 - **Glass-Box Panels**: attached built-in/SARIF findings in hunk context, collapsible **Symmetric Proof (Ruled-Out Concerns)**, and **Structured Rule Telemetry**
+- **Native macOS & Windows Desktop App (`desktop/`, Tauri v2)**: drag and drop any local Git repository folder onto the window to inspect diffs, commits, and streaming AI explanations natively — bundles a standalone `diffgloss-engine` sidecar binary with zero external runtime setup
+- **Dual-Role Author-Explains → Independent Line Auditor**: defaults to letting the authoring coding agent (**Codex CLI** / **Claude Code CLI**, read-only & fork-safe) explain its own changes (with configurable fallback to API Model A), while an independent cold-start **Role-B Line Auditor** verifies every `+`/`-` diff line for omissions or contradictions, backed by content-addressed `hunk_id` disk caching and live SSE progress streaming
 - **Repo & Commit Workbench (`📂 Repo / Commit`)**: switch to any local git repository, browse recent & nearby repos, inspect Working Tree / Staged / Branch Ranges, or click any commit in git history to load its diff & commit message in <1s
 - **In-Page Model Configuration (`⚙ Models`)**: 1-click presets for DeepSeek, Claude, OpenAI, Gemini, OpenRouter, Ollama, Qwen, Kimi, GLM & custom OpenAI-compatible endpoints, with live **Test Connection** and **▶ Run Explain Now** (saved locally to `~/.config/diffgloss/settings.json` with `chmod 600`, zero env vars needed)
 - **Live Browser Q&A**: in `--serve` mode, submit answers directly in the browser to persist back to `.diffgloss/ledger.json`
@@ -176,6 +178,16 @@ git clone https://github.com/atomsprout/diffgloss.git
 cd diffgloss
 bun install
 bun run build
+```
+
+### 0. Native Desktop App (macOS & Windows via Tauri v2)
+
+```bash
+# Build the standalone diffgloss-engine sidecar & native macOS Diffgloss.app (or Windows installer)
+cd desktop
+bun run build:all
+# -> desktop/src-tauri/target/release/bundle/macos/Diffgloss.app
+# Drag any local Git repository folder directly onto the window to review!
 ```
 
 ### 1. Zero-Env-Var Browser UI (Configure Any Model In-Page!)
@@ -266,7 +278,7 @@ Diffgloss ships with a 12-case multi-language golden evaluation suite (`evals/go
 
 ```bash
 bun run typecheck   # Strict TypeScript (erasableSyntaxOnly) — 0 errors
-bun test            # 22 unit & integration tests (78 assertions)
+bun test            # 28 unit & integration tests (111 assertions)
 node dist/cli.js eval
 DEEPSEEK_API_KEY=... node dist/cli.js eval --provider deepseek --model deepseek-chat
 ```
@@ -287,22 +299,23 @@ diffgloss/
 │   ├── index.ts               # Programmatic library exports
 │   ├── config/loader.ts       # diffgloss.yaml & base-branch REVIEW.md/AGENTS.md/CLAUDE.md discovery
 │   ├── diff/                  # Unified diff parser, multi-lang AST scopes, sub-hunk splitter, moves, classifier, context
-│   ├── llm/                   # Zero-dep fetch clients (Anthropic, OpenAI, DeepSeek, Google, Mock) & USD budget guard
-│   ├── pipeline/              # Ledger builder, blind-first explainer, intent-integrity checks, symmetric-proof reviewer
+│   ├── llm/                   # Zero-dep fetch clients (Anthropic, OpenAI, DeepSeek, Google, Mock), Author CLI Adapter (Codex/Claude), budget guard
+│   ├── pipeline/              # Ledger builder, dual-role explainer, hunk cache, Role-B line auditor, intent checks, symmetric-proof reviewer
 │   ├── provenance/            # Secret redactor, hooks/auto-session discovery, Q&A cold-start verifier
 │   ├── rules/engine.ts        # Scoped Markdown+YAML structured rules & hit telemetry
 │   ├── interop/sarif.ts       # SARIF 2.1.0 import/export & reviewdog rdjsonl
 │   ├── platform/github.ts     # Sticky PR ledger comment & fingerprinted inline reconciliation
 │   ├── mcp/server.ts          # MCP JSON-RPC 2.0 stdio server
-│   ├── render/                # Offline interactive HTML UI, local HTTP preview server, Markdown renderer
+│   ├── render/                # Offline interactive HTML UI, SSE streaming server, native drag-drop bridge, Markdown renderer
 │   └── eval/harness.ts        # Golden evaluation runner
+├── desktop/                   # Native macOS & Windows Tauri v2 desktop app (Rust shell + standalone sidecar builder)
 ├── schemas/                   # diffgloss.explanation/v0 JSON Schema
 ├── site/                      # Interactive 3D GitHub Pages landing site
 ├── evals/golden/              # 12 multi-language golden diff fixtures
 ├── examples/                  # Sample ledger, diffgloss.yaml, structured rule example
 ├── skills/diffgloss/          # Ready-to-use coding agent skill (SKILL.md)
-├── .github/workflows/         # Ready-to-use GitHub Actions workflow
-├── docs/architecture.md       # Architecture & design guardrails
+├── .github/workflows/         # CI, GitHub Pages, and cross-platform Tauri v2 desktop release workflows
+├── docs/                      # Architecture & v0.3 dual-role desktop design docs
 └── tests/                     # Unit & integration test suites
 ```
 

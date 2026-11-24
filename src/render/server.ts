@@ -17,7 +17,9 @@ import {
   resolveGitTopLevel,
   type DiffTarget,
 } from "../diff/git-source.ts";
+import { detectInstalledAuthorClis } from "../llm/author-adapter.ts";
 import { createLLMClient } from "../llm/providers.ts";
+import { auditLedgerLines } from "../pipeline/auditor.ts";
 import { explainLedger } from "../pipeline/explainer.ts";
 import { attachFindingsToHunks } from "../pipeline/integrity.ts";
 import { buildInitialLedger } from "../pipeline/ledger.ts";
@@ -83,6 +85,16 @@ function persistLedger(
 
 function parseSettingsPatch(body: Record<string, unknown>): Partial<UserSettings> {
   const patch: Partial<UserSettings> = {};
+  if (body.explainer_mode === "author_cli" || body.explainer_mode === "api_model") {
+    patch.explainer_mode = body.explainer_mode;
+  }
+  if (
+    body.author_cli === "auto" ||
+    body.author_cli === "claude-cli" ||
+    body.author_cli === "codex-cli"
+  ) {
+    patch.author_cli = body.author_cli;
+  }
   if (typeof body.preset === "string") patch.preset = body.preset;
   if (typeof body.provider === "string") patch.provider = body.provider as ProviderDialect;
   if (typeof body.model === "string") patch.model = body.model.trim();
@@ -114,6 +126,9 @@ function parseSettingsPatch(body: Record<string, unknown>): Partial<UserSettings
     patch.budget_usd = body.budget_usd;
   }
   if (typeof body.enable_judge === "boolean") patch.enable_judge = body.enable_judge;
+  if (typeof body.enable_line_audit === "boolean") {
+    patch.enable_line_audit = body.enable_line_audit;
+  }
   if (typeof body.enable_review === "boolean") patch.enable_review = body.enable_review;
   return patch;
 }
@@ -125,10 +140,12 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
   const { port, jsonOutPath, htmlOutPath, homeDir } = options;
   let currentLedger = options.ledger;
 
-  const getEffectiveConfig = (): DiffglossConfig => {
-    const saved = loadUserSettings(homeDir);
+  const getEffectiveConfig = (inlinePatch?: Partial<UserSettings>): DiffglossConfig => {
+    const saved = { ...loadUserSettings(homeDir), ...(inlinePatch ?? {}) };
     return loadConfig(currentRepoPath, {
       ...(options.config ?? {}),
+      ...(saved.explainer_mode ? { explainer_mode: saved.explainer_mode } : {}),
+      ...(saved.author_cli ? { author_cli: saved.author_cli } : {}),
       ...(saved.provider ? { provider: saved.provider } : {}),
       ...(saved.model ? { model: saved.model } : {}),
       ...(saved.base_url ? { base_url: saved.base_url } : {}),
@@ -149,6 +166,12 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
       const html = renderHtmlReport(currentLedger, { liveServer: true });
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(html);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: true, repo: currentRepoPath, version: "0.3.0" }));
       return;
     }
 
@@ -287,6 +310,7 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
         JSON.stringify({
           settings: toMaskedUserSettings(saved, homeDir),
           presets: PROVIDER_PRESETS,
+          detected_clis: detectInstalledAuthorClis(),
         }),
       );
       return;
@@ -368,17 +392,33 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/api/explain") {
+    if (req.method === "POST" && (url.pathname === "/api/explain" || url.pathname === "/api/explain-stream")) {
+      const isStream = url.pathname === "/api/explain-stream";
+      const sendEvent = (event: string, data: unknown): void => {
+        if (!isStream) return;
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
       try {
         const body = await readJsonBody(req);
-        if (body.settings && typeof body.settings === "object") {
-          saveUserSettings(
-            parseSettingsPatch(body.settings as Record<string, unknown>),
-            homeDir,
-          );
+        if (isStream) {
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          });
         }
-        const saved = loadUserSettings(homeDir);
-        const cfg = getEffectiveConfig();
+        let inlinePatch: Partial<UserSettings> | undefined;
+        if (body.settings && typeof body.settings === "object") {
+          inlinePatch = parseSettingsPatch(body.settings as Record<string, unknown>);
+          try {
+            saveUserSettings(inlinePatch, homeDir);
+          } catch {
+            // Non-fatal in read-only HOME
+          }
+        }
+        const saved = { ...loadUserSettings(homeDir), ...(inlinePatch ?? {}) };
+        const cfg = getEffectiveConfig(inlinePatch);
 
         const intentText =
           typeof body.declared_intent === "string"
@@ -401,6 +441,7 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
           if (h.status !== "collapsed") {
             h.status = "unexplained";
             delete h.what;
+            delete h.audit;
           }
         }
 
@@ -410,23 +451,70 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
           baseRef,
           rulesFromBase: cfg.rules_from_base,
         });
+        const runLineAudit =
+          typeof body.enable_line_audit === "boolean"
+            ? body.enable_line_audit
+            : saved.enable_line_audit ?? true;
         const runJudge =
           typeof body.enable_judge === "boolean"
             ? body.enable_judge
-            : saved.enable_judge ?? cfg.effort === "deep";
+            : saved.enable_judge ?? false;
         const runReview =
           typeof body.enable_review === "boolean"
             ? body.enable_review
             : saved.enable_review ?? false;
 
+        sendEvent("stage", {
+          stage: "explaining",
+          done: 0,
+          total: workingLedger.hunks.filter((h) => h.status !== "collapsed").length,
+          message: `Explaining via ${cfg.explainer_mode === "author_cli" ? `Author CLI (${cfg.author_cli ?? "auto"})` : `${cfg.provider}/${cfg.model}`}...`,
+        });
+
         let updated = await explainLedger(workingLedger, {
           cwd: currentRepoPath,
           config: cfg,
           ruleDocs,
-          runJudge,
+          runJudge: runLineAudit ? false : runJudge,
+          useCache: body.bypass_cache !== true,
+          onProgress: (stage, done, total, message) => {
+            sendEvent("stage", { stage, done, total, message });
+          },
         });
 
+        sendEvent("ledger", { ledger: updated });
+
+        if (runLineAudit) {
+          const auditTargets = updated.hunks.filter(
+            (h) => h.status !== "collapsed" && Boolean(h.what?.text),
+          ).length;
+          sendEvent("stage", {
+            stage: "auditing",
+            done: 0,
+            total: auditTargets,
+            message: `Independent Reviewer auditing every changed line (${cfg.judge_model ?? cfg.model})...`,
+          });
+          updated = await auditLedgerLines(updated, {
+            config: cfg,
+            onHunkAudited: (hunk, done, total) => {
+              sendEvent("stage", {
+                stage: "auditing",
+                done,
+                total,
+                message: `Audited ${done}/${total}: ${hunk.path} (${hunk.audit?.status ?? "done"})`,
+              });
+            },
+          });
+          sendEvent("ledger", { ledger: updated });
+        }
+
         if (runReview) {
+          sendEvent("stage", {
+            stage: "reviewing",
+            done: 0,
+            total: 1,
+            message: "Running isolated parallel specialists (Symmetric Proof)...",
+          });
           const rules = loadStructuredRules(currentRepoPath, {
             baseRef,
             rulesFromBase: cfg.rules_from_base,
@@ -442,16 +530,25 @@ export function startPreviewServer(options: PreviewServerOptions): http.Server {
         currentLedger = updated;
         persistLedger(currentLedger, jsonOutPath, htmlOutPath);
 
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ ok: true, ledger: currentLedger }));
+        if (isStream) {
+          sendEvent("done", { ok: true, ledger: currentLedger });
+          res.end();
+        } else {
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({ ok: true, ledger: currentLedger }));
+        }
       } catch (err) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isStream) {
+          if (!res.headersSent) {
+            res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8" });
+          }
+          sendEvent("error", { ok: false, error: msg });
+          res.end();
+        } else {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: msg }));
+        }
       }
       return;
     }

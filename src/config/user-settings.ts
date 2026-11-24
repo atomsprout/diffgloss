@@ -1,7 +1,12 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { EffortLevel, ProviderDialect } from "../schema/types.ts";
+import type {
+  AuthorCliKind,
+  EffortLevel,
+  ExplainerMode,
+  ProviderDialect,
+} from "../schema/types.ts";
 
 export interface ProviderPreset {
   id: string;
@@ -123,6 +128,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 ];
 
 export interface UserSettings {
+  explainer_mode?: ExplainerMode;
+  author_cli?: AuthorCliKind;
   preset?: string;
   provider?: ProviderDialect;
   model?: string;
@@ -135,12 +142,15 @@ export interface UserSettings {
   effort?: EffortLevel;
   budget_usd?: number;
   enable_judge?: boolean;
+  enable_line_audit?: boolean;
   enable_review?: boolean;
   recent_repos?: string[];
 }
 
 export interface MaskedUserSettings {
   settings_path: string;
+  explainer_mode: ExplainerMode;
+  author_cli: AuthorCliKind;
   preset: string;
   provider: ProviderDialect;
   model: string;
@@ -155,6 +165,7 @@ export interface MaskedUserSettings {
   effort: EffortLevel;
   budget_usd: number;
   enable_judge: boolean;
+  enable_line_audit: boolean;
   enable_review: boolean;
 }
 
@@ -243,6 +254,8 @@ export function toMaskedUserSettings(
 
   return {
     settings_path: getUserSettingsPath(homeDir),
+    explainer_mode: settings.explainer_mode ?? "author_cli",
+    author_cli: settings.author_cli ?? "auto",
     preset,
     provider,
     model: settings.model ?? presetObj?.default_model ?? "deepseek-chat",
@@ -257,6 +270,7 @@ export function toMaskedUserSettings(
     effort: settings.effort ?? "standard",
     budget_usd: settings.budget_usd ?? 1.5,
     enable_judge: settings.enable_judge ?? true,
+    enable_line_audit: settings.enable_line_audit ?? true,
     enable_review: settings.enable_review ?? true,
   };
 }

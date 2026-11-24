@@ -53,7 +53,35 @@ export type ProviderDialect =
   | "openai-chat"
   | "deepseek"
   | "google"
+  | "claude-cli"
+  | "codex-cli"
   | "mock";
+
+export type ExplainerMode = "author_cli" | "api_model";
+
+export type AuthorCliKind = "auto" | "claude-cli" | "codex-cli";
+
+export type AuditStatus =
+  | "pending"
+  | "verified"
+  | "omission_detected"
+  | "contradicted";
+
+export interface HunkExplainerMeta {
+  mode: ExplainerMode;
+  adapter: string;
+  session_id?: string;
+  cached?: boolean;
+}
+
+export interface HunkAudit {
+  status: AuditStatus;
+  auditor_model: string;
+  covered_lines: number[];
+  omitted_lines: number[];
+  note: string;
+  audited_at: string;
+}
 
 export interface SkippedFile {
   path: string;
@@ -156,6 +184,8 @@ export interface AttachedFinding {
     | "scope_creep"
     | "bug_verified"
     | "custom_rule"
+    | "audit_omission"
+    | "audit_contradiction"
     | "external_sarif";
   path: string;
   lines: [number, number];
@@ -205,6 +235,8 @@ export interface HunkRecord {
   what?: HunkWhat;
   why?: HunkWhy;
   provenance?: HunkProvenance;
+  explainer_meta?: HunkExplainerMeta;
+  audit?: HunkAudit;
   questions?: string[];
   finding_ids?: string[];
   moved_from?: {
@@ -290,6 +322,8 @@ export interface ParsedDiffResult {
 }
 
 export interface DiffglossConfig {
+  explainer_mode?: ExplainerMode;
+  author_cli?: AuthorCliKind;
   provider: ProviderDialect;
   model: string;
   base_url?: string;

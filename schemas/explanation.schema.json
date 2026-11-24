@@ -284,6 +284,42 @@
             "type": "array",
             "items": { "type": "string" }
           },
+          "explainer_meta": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "adapter"],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["author_cli", "api_model"]
+              },
+              "adapter": { "type": "string" },
+              "session_id": { "type": "string" },
+              "cached": { "type": "boolean" }
+            }
+          },
+          "audit": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "auditor_model", "covered_lines", "omitted_lines", "note", "audited_at"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["pending", "verified", "omission_detected", "contradicted"]
+              },
+              "auditor_model": { "type": "string" },
+              "covered_lines": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 }
+              },
+              "omitted_lines": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 1 }
+              },
+              "note": { "type": "string" },
+              "audited_at": { "type": "string", "format": "date-time" }
+            }
+          },
           "moved_from": {
             "type": "object",
             "additionalProperties": false,
@@ -381,7 +417,16 @@
           "severity": { "type": "string", "enum": ["important", "nit", "info"] },
           "category": {
             "type": "string",
-            "enum": ["intent_mismatch", "test_weakened", "guard_removed", "silent_error", "scope_creep", "external_sarif"]
+            "enum": [
+              "intent_mismatch",
+              "test_weakened",
+              "guard_removed",
+              "silent_error",
+              "scope_creep",
+              "external_sarif",
+              "audit_omission",
+              "audit_contradiction"
+            ]
           },
           "path": { "type": "string" },
           "lines": {

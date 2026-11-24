@@ -1,4 +1,5 @@
 import type { ProviderDialect } from "../schema/types.ts";
+import { createAuthorCliClient } from "./author-adapter.ts";
 import { estimateTokens } from "./budget.ts";
 import type { LLMClient, LLMClientConfig, LLMRequest, LLMResponse } from "./types.ts";
 
@@ -489,6 +490,45 @@ export class MockLLMClient implements LLMClient {
       };
     }
 
+    // Handle independent line-by-line auditor requests
+    if (req.system.includes("DIFFGLOSS_LINE_AUDITOR")) {
+      const lineNums = [...promptText.matchAll(/\[(?:old|new) L(\d+)\]/g)].map((m) =>
+        Number(m[1]),
+      );
+      const hasFalseClaim = /still checks revoked|no guard removed/i.test(promptText);
+      const hasOmission = /omit-test-trigger/i.test(promptText);
+      let verdict;
+      if (hasFalseClaim) {
+        verdict = {
+          status: "contradicted",
+          covered_lines: [],
+          omitted_lines: lineNums,
+          note: "Explanation contradicts diff: guard check was deleted.",
+        };
+      } else if (hasOmission && lineNums.length > 1) {
+        verdict = {
+          status: "omission_detected",
+          covered_lines: lineNums.slice(0, 1),
+          omitted_lines: lineNums.slice(1),
+          note: `Author explanation omitted changed line(s): ${lineNums.slice(1).join(", ")}.`,
+        };
+      } else {
+        verdict = {
+          status: "verified",
+          covered_lines: lineNums,
+          omitted_lines: [],
+          note: `All ${lineNums.length} changed line(s) verified faithful to diff.`,
+        };
+      }
+      const text = JSON.stringify(verdict);
+      return {
+        text,
+        model: this.model,
+        provider: this.provider,
+        usage: { inputTokens, outputTokens: estimateTokens(text), cachedInputTokens: 0 },
+      };
+    }
+
     // Parse embedded HUNK_PAYLOAD JSON array from explainer prompt
     const payloadMatch = /<HUNKS_JSON>\s*([\s\S]*?)\s*<\/HUNKS_JSON>/.exec(promptText);
     const hunks = payloadMatch
@@ -588,6 +628,18 @@ export function createLLMClient(cfg: LLMClientConfig): LLMClient {
       });
     case "google":
       return new GoogleGenAIClient(cfg);
+    case "claude-cli":
+      return createAuthorCliClient({
+        kind: "claude-cli",
+        cwd: process.cwd(),
+        model: cfg.model,
+      });
+    case "codex-cli":
+      return createAuthorCliClient({
+        kind: "codex-cli",
+        cwd: process.cwd(),
+        model: cfg.model,
+      });
     case "mock":
       return new MockLLMClient(cfg.model);
     default:

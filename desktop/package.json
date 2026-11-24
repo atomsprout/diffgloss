@@ -1,0 +1,11 @@
+{
+  "name": "diffgloss-desktop",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Native macOS & Windows Tauri v2 desktop wrapper for Diffgloss.",
+  "scripts": {
+    "build:sidecar": "bun run scripts/build-sidecar.ts",
+    "tauri:dev": "bun run build:sidecar && cargo tauri dev --manifest-path src-tauri/Cargo.toml",
+    "tauri:build": "bun run build:sidecar && cargo tauri build --manifest-path src-tauri/Cargo.toml"
+  }
+}

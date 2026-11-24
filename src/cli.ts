@@ -14,6 +14,7 @@ import {
   importSarifFindings,
 } from "./interop/sarif.ts";
 import { startMcpStdioServer } from "./mcp/server.ts";
+import { auditLedgerLines } from "./pipeline/auditor.ts";
 import { estimateExplainCost, explainLedger } from "./pipeline/explainer.ts";
 import { attachFindingsToHunks } from "./pipeline/integrity.ts";
 import { buildInitialLedger } from "./pipeline/ledger.ts";
@@ -170,6 +171,8 @@ function writeAllOutputs(
 
 function buildConfigOverrides(args: string[]): Partial<DiffglossConfig> {
   const overrides: Partial<DiffglossConfig> = {};
+  const explainerMode = getFlagValue(args, "--explainer-mode");
+  const authorCli = getFlagValue(args, "--author-cli");
   const provider = getFlagValue(args, "--provider") as ProviderDialect | undefined;
   const model = getFlagValue(args, "--model");
   const baseUrl = getFlagValue(args, "--base-url");
@@ -178,6 +181,16 @@ function buildConfigOverrides(args: string[]): Partial<DiffglossConfig> {
   const effort = getFlagValue(args, "--effort") as EffortLevel | undefined;
   const budgetStr = getFlagValue(args, "--budget");
 
+  if (explainerMode === "author_cli" || explainerMode === "api_model") {
+    overrides.explainer_mode = explainerMode;
+  }
+  if (
+    authorCli === "auto" ||
+    authorCli === "claude-cli" ||
+    authorCli === "codex-cli"
+  ) {
+    overrides.author_cli = authorCli;
+  }
   if (provider) {
     overrides.provider = provider;
     if (!model && provider === "deepseek") {
@@ -229,12 +242,14 @@ function loadDiffAndBaseLedger(
       "--provider",
       "--model",
       "--base-url",
+      "--explainer-mode",
+      "--author-cli",
       "--judge-provider",
       "--judge-model",
       "--effort",
       "--budget",
     ]),
-    new Set(["--serve", "--dry-run", "--judge", "--review", "--no-auto-sessions"]),
+    new Set(["--serve", "--dry-run", "--judge", "--audit", "--review", "--no-auto-sessions"]),
   );
 
   const rawDiff = diffFile
@@ -315,6 +330,7 @@ async function runInspectOrExplain(mode: "inspect" | "explain", args: string[]):
   const outRdjsonl = getFlagValue(args, "--rdjsonl-out");
   const shouldServe = args.includes("--serve");
   const dryRun = args.includes("--dry-run");
+  const runAudit = args.includes("--audit");
   const runJudge = args.includes("--judge") || config.effort === "deep";
   const runReview = args.includes("--review");
   const port = Number.parseInt(getFlagValue(args, "--port") ?? "4317", 10);
@@ -353,8 +369,12 @@ async function runInspectOrExplain(mode: "inspect" | "explain", args: string[]):
       cwd,
       config,
       ruleDocs,
-      runJudge,
+      runJudge: runAudit ? false : runJudge,
     });
+
+    if (runAudit) {
+      ledger = await auditLedgerLines(ledger, { config });
+    }
 
     if (runReview) {
       ledger = await runSymmetricProofReview(ledger, {
@@ -683,23 +703,43 @@ async function runUi(args: string[]): Promise<void> {
     return;
   }
 
-  const root = resolveGitTopLevel(targetRepo) ?? cwd;
-  let extracted = extractRepoDiff(root, { mode: "working" });
-  if (!extracted.raw_diff.trim()) {
-    try {
-      extracted = extractRepoDiff(root, { mode: "commit", sha: "HEAD" });
-    } catch {
-      // Empty repo with no commits yet — still start UI so user can pick another repo
+  const root = resolveGitTopLevel(targetRepo);
+  let extracted: {
+    raw_diff: string;
+    title: string;
+    declared_intent?: string;
+    declared_intent_ref: "commit_message" | "none";
+    base_ref?: string;
+    head_ref?: string;
+    diff_args: string[];
+  };
+
+  if (root) {
+    extracted = extractRepoDiff(root, { mode: "working" });
+    if (!extracted.raw_diff.trim()) {
+      try {
+        extracted = extractRepoDiff(root, { mode: "commit", sha: "HEAD" });
+      } catch {
+        // Empty repo with no commits yet
+      }
     }
+  } else {
+    extracted = {
+      raw_diff: "",
+      title: "Diffgloss — Drop a Git Repository Folder or Click '📂 Repo / Commit'",
+      declared_intent_ref: "none",
+      diff_args: [],
+    };
   }
 
+  const activeCwd = root ?? cwd;
   const ledger = buildInitialLedger(extracted.raw_diff, {
-    cwd: root,
+    cwd: activeCwd,
     title: extracted.title,
     declaredIntent: extracted.declared_intent,
     declaredIntentRef: extracted.declared_intent_ref,
     source: {
-      repo: path.basename(root),
+      repo: root ? path.basename(root) : "welcome",
       base_ref: extracted.base_ref,
       head_ref: extracted.head_ref,
       diff_args: extracted.diff_args,
@@ -709,13 +749,19 @@ async function runUi(args: string[]): Promise<void> {
     ignorePatterns: config.ignore,
   });
 
-  writeAllOutputs(ledger, { outJson, outHtml, liveServer: false });
+  if (root) {
+    try {
+      writeAllOutputs(ledger, { outJson, outHtml, liveServer: false });
+    } catch {
+      // Non-fatal if cwd is read-only when launched as Desktop App
+    }
+  }
   startPreviewServer({
     port,
-    cwd: root,
+    cwd: activeCwd,
     ledger,
-    jsonOutPath: outJson,
-    htmlOutPath: outHtml,
+    jsonOutPath: root ? outJson : undefined,
+    htmlOutPath: root ? outHtml : undefined,
     config,
   });
 }

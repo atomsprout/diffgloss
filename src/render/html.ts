@@ -429,6 +429,37 @@ export function renderHtmlReport(
     .line-del .diff-num { background: var(--diff-del-num); }
     .line-hdr { color: var(--muted); background: var(--bg-elev); }
     .line-highlight { background: var(--diff-hl-bg) !important; outline: 1px solid var(--accent); }
+    .line-omitted { background: rgba(210, 153, 34, 0.24) !important; box-shadow: inset 3px 0 0 var(--amber); }
+    .stream-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 14px;
+      margin-top: 8px;
+      border-radius: 8px;
+      background: rgba(88, 166, 255, 0.12);
+      border: 1px solid rgba(88, 166, 255, 0.35);
+      font-size: 12px;
+    }
+    .stream-banner.active { display: flex; }
+    .drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      background: rgba(13, 17, 23, 0.85);
+      border: 3px dashed var(--accent);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      pointer-events: none;
+    }
+    .drop-overlay.active { display: flex; }
     .empty-state {
       text-align: center;
       padding: 48px 20px;
@@ -596,7 +627,15 @@ export function renderHtmlReport(
       <span id="behavior-change"></span>
       <span id="meta-info"></span>
     </div>
+    <div class="stream-banner" id="stream-banner">
+      <span id="stream-msg">Running Diffgloss pipeline...</span>
+      <span class="badge b-amber" id="stream-step">0/0</span>
+    </div>
   </header>
+  <div class="drop-overlay" id="drop-overlay">
+    <div>📂 Drop Git Repository Folder to Review</div>
+    <div style="font-size:13px;color:var(--muted)">Instant AST diff + Dual-Model Audit</div>
+  </div>
 
   <div class="layout">
     <aside id="sidebar"></aside>
@@ -650,7 +689,22 @@ export function renderHtmlReport(
       <div id="settings-static-note" class="status-msg info" style="margin-bottom:10px"></div>
       <div id="settings-live-body">
         <div class="field">
-          <label>Quick Provider Presets (1-click)</label>
+          <label>Role A — Explainer Mode (Who Explains the Diff)</label>
+          <div class="form-grid" style="margin-bottom:4px">
+            <select id="cfg-explainer-mode">
+              <option value="author_cli">Author Coding Agent CLI (Codex / Claude Code — Default)</option>
+              <option value="api_model">Independent Explainer Model A (API)</option>
+            </select>
+            <select id="cfg-author-cli">
+              <option value="auto">Auto-detect (Codex / Claude Code)</option>
+              <option value="codex-cli">Codex CLI (codex exec -s read-only)</option>
+              <option value="claude-cli">Claude Code CLI (claude -p --permission-mode plan)</option>
+            </select>
+          </div>
+          <div id="detected-clis" class="badges" style="margin-top:4px"></div>
+        </div>
+        <div class="field">
+          <label>Quick Provider Presets (Model A / Reviewer Model B)</label>
           <div class="preset-chips" id="preset-chips"></div>
         </div>
         <div class="form-grid">
@@ -694,8 +748,9 @@ export function renderHtmlReport(
           </div>
         </div>
         <div class="check-row">
-          <label><input type="checkbox" id="cfg-enable-judge" checked /> Cold-start semantic grounding judge</label>
-          <label><input type="checkbox" id="cfg-enable-review" checked /> Symmetric-proof bug review (ruled-out proof)</label>
+          <label><input type="checkbox" id="cfg-enable-line-audit" checked /> Role B: Line-by-Line Audit (verify every changed line)</label>
+          <label><input type="checkbox" id="cfg-enable-review" checked /> Isolated Symmetric-Proof Bug Review</label>
+          <label><input type="checkbox" id="cfg-enable-judge" /> Legacy Semantic Judge</label>
         </div>
         <div class="field">
           <label for="cfg-intent">Declared Intent (Prompt / Plan / PR Description)</label>
@@ -827,15 +882,21 @@ export function renderHtmlReport(
       }
 
       function renderUnifiedTable(hunk, rows) {
+        const omittedSet = new Set(hunk.audit?.omitted_lines || []);
         return (
           '<table class="diff-table" data-hunk-table="' + esc(hunk.id) + '"><tbody>' +
           rows.map((r) => {
+            const isOmitted =
+              (r.type === "add" && omittedSet.has(r.newNum)) ||
+              (r.type === "del" && omittedSet.has(r.oldNum));
             const cls =
-              r.type === "add" ? "line-add" :
+              (r.type === "add" ? "line-add" :
               r.type === "del" ? "line-del" :
-              r.type === "hdr" ? "line-hdr" : "";
+              r.type === "hdr" ? "line-hdr" : "") +
+              (isOmitted ? " line-omitted" : "");
             return (
-              '<tr class="diff-line ' + cls + '" data-old="' + r.oldNum + '" data-new="' + r.newNum + '">' +
+              '<tr class="diff-line ' + cls + '" data-old="' + r.oldNum + '" data-new="' + r.newNum + '"' +
+              (isOmitted ? ' title="Omitted by author explanation — flagged by independent Line Auditor"' : "") + '>' +
               '<td class="diff-num">' + r.oldNum + "</td>" +
               '<td class="diff-num">' + r.newNum + "</td>" +
               '<td class="diff-code">' + esc(r.text) + "</td>" +
@@ -925,11 +986,24 @@ export function renderHtmlReport(
             '<button class="cite-chip" data-hunk="' + esc(hunk.id) + '" data-side="' + esc(c.side) + '" data-start="' + c.lines[0] + '" data-end="' + c.lines[1] + '">' +
             esc(c.path) + ":" + c.lines[0] + (c.lines[1] !== c.lines[0] ? "-" + c.lines[1] : "") + " (" + esc(c.side) + ")</button>"
           ).join("");
+          const auditBadge = hunk.audit
+            ? '<span class="badge ' +
+              (hunk.audit.status === "verified" ? "b-green" :
+               hunk.audit.status === "omission_detected" ? "b-amber" :
+               hunk.audit.status === "contradicted" ? "b-red" : "b-slate") +
+              '">audit: ' + esc(hunk.audit.status) +
+              (hunk.audit.omitted_lines?.length ? " (" + hunk.audit.omitted_lines.length + " omitted)" : "") +
+              "</span>"
+            : "";
+          const explainerPill = hunk.explainer_meta
+            ? '<span class="badge b-slate">' + esc(hunk.explainer_meta.adapter) + (hunk.explainer_meta.cached ? " · cached" : "") + "</span>"
+            : "";
           whatHtml =
             '<div class="ev-box">' +
-            '<div class="ev-label"><span>What (Code Fact)</span><span class="badges">' + citeBadge + '<span class="badge ' + semBadgeClass + '">semantic: ' + esc(hunk.what.semantic_grounding) + '</span></span></div>' +
+            '<div class="ev-label"><span>What (Code Fact)</span><span class="badges">' + citeBadge + '<span class="badge ' + semBadgeClass + '">semantic: ' + esc(hunk.what.semantic_grounding) + '</span>' + auditBadge + explainerPill + '</span></div>' +
             '<p class="ev-text">' + esc(hunk.what.text) + "</p>" +
-            (hunk.what.semantic_note ? '<div style="margin-top:4px;font-size:11px;color:var(--muted)">Judge: ' + esc(hunk.what.semantic_note) + "</div>" : "") +
+            (hunk.audit?.note ? '<div style="margin-top:4px;font-size:11px;color:var(--muted)">Auditor (' + esc(hunk.audit.auditor_model) + "): " + esc(hunk.audit.note) + "</div>" : "") +
+            (!hunk.audit && hunk.what.semantic_note ? '<div style="margin-top:4px;font-size:11px;color:var(--muted)">Judge: ' + esc(hunk.what.semantic_note) + "</div>" : "") +
             (cites ? '<div class="citations">' + cites + "</div>" : "") +
             "</div>";
         } else {
@@ -1460,6 +1534,65 @@ export function renderHtmlReport(
         loadDiffSelection({ mode: "commit", sha: row.getAttribute("data-commit-sha") });
       });
 
+      async function runExplainWithStream(payloadObj, onDoneCallback) {
+        const banner = document.getElementById("stream-banner");
+        const msgEl = document.getElementById("stream-msg");
+        const stepEl = document.getElementById("stream-step");
+        banner.classList.add("active");
+        msgEl.textContent = "Starting Diffgloss dual-role pipeline...";
+        stepEl.textContent = "...";
+
+        try {
+          const res = await fetch("/api/explain-stream", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payloadObj),
+          });
+          if (!res.body) throw new Error("Streaming response unavailable");
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          let lastError = null;
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const frames = buf.split("\\n\\n");
+            buf = frames.pop() || "";
+            for (const frame of frames) {
+              const evMatch = /^event:\s*(.+)$/m.exec(frame);
+              const dataMatch = /^data:\s*(.+)$/m.exec(frame);
+              if (!evMatch || !dataMatch) continue;
+              const evName = evMatch[1].trim();
+              const data = JSON.parse(dataMatch[1]);
+              if (evName === "stage") {
+                msgEl.textContent = data.message || data.stage;
+                stepEl.textContent = data.total ? data.done + "/" + data.total : data.stage;
+              } else if (evName === "ledger" && data.ledger) {
+                ledger = data.ledger;
+                renderHeader();
+                renderBody();
+              } else if (evName === "done" && data.ledger) {
+                ledger = data.ledger;
+                renderHeader();
+                renderBody();
+                onDoneCallback?.(true, data.ledger);
+              } else if (evName === "error") {
+                lastError = data.error || "Pipeline error";
+              }
+            }
+          }
+          if (lastError) {
+            onDoneCallback?.(false, lastError);
+          }
+        } catch (err) {
+          onDoneCallback?.(false, err.message);
+        } finally {
+          setTimeout(() => banner.classList.remove("active"), 1800);
+        }
+      }
+
       document.getElementById("quick-explain-btn").addEventListener("click", async () => {
         if (!LIVE_SERVER) {
           document.getElementById("settings-btn").click();
@@ -1467,31 +1600,44 @@ export function renderHtmlReport(
         }
         const btn = document.getElementById("quick-explain-btn");
         btn.disabled = true;
-        btn.textContent = "Explaining...";
-        try {
-          const res = await fetch("/api/explain", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({}),
-          });
-          const data = await res.json();
-          if (data.ok && data.ledger) {
-            ledger = data.ledger;
-            renderHeader();
-            renderBody();
-          } else {
-            // Open Models settings modal and display exact error (e.g. missing API key)
+        btn.textContent = "Running...";
+        await runExplainWithStream({}, (ok, info) => {
+          if (!ok) {
             document.getElementById("settings-btn").click();
-            setTimeout(() => setStatus("err", data.error || "Please configure a model and API key first."), 150);
+            setTimeout(() => setStatus("err", String(info || "Please configure a model and API key first.")), 150);
           }
-        } catch (err) {
-          document.getElementById("settings-btn").click();
-          setTimeout(() => setStatus("err", err.message), 150);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "▶ Explain";
-        }
+        });
+        btn.disabled = false;
+        btn.textContent = "▶ Explain";
       });
+
+      // Native Tauri Desktop Drag-and-Drop bridge (when running inside Diffgloss.app)
+      window.__diffglossSetDropActive = function (active) {
+        const overlay = document.getElementById("drop-overlay");
+        if (overlay) overlay.classList.toggle("active", Boolean(active));
+      };
+      window.__diffglossLoadRepo = async function (repoPath) {
+        window.__diffglossSetDropActive(false);
+        if (!repoPath || !LIVE_SERVER) return;
+        document.getElementById("repo-path-input").value = repoPath;
+        await loadDiffSelection({ repo_path: repoPath, mode: "working" });
+        // If working tree is clean (0 hunks), automatically load latest commit HEAD!
+        if (ledger.coverage.total === 0) {
+          await loadDiffSelection({ repo_path: repoPath, mode: "commit", sha: "HEAD" });
+        }
+      };
+
+      (function setupDesktopBridge() {
+        const tauriEvent = window.__TAURI__?.event;
+        if (tauriEvent && typeof tauriEvent.listen === "function") {
+          tauriEvent.listen("tauri://drag-enter", () => window.__diffglossSetDropActive(true));
+          tauriEvent.listen("tauri://drag-leave", () => window.__diffglossSetDropActive(false));
+          tauriEvent.listen("tauri://drag-drop", (ev) => {
+            const paths = ev.payload?.paths || [];
+            if (paths.length > 0) window.__diffglossLoadRepo(paths[0]);
+          });
+        }
+      })();
 
       // --- In-Page Model Settings Modal ---
       let presetsCache = [];
@@ -1520,6 +1666,8 @@ export function renderHtmlReport(
 
       function collectSettingsPayload() {
         return {
+          explainer_mode: document.getElementById("cfg-explainer-mode").value,
+          author_cli: document.getElementById("cfg-author-cli").value,
           preset: selectedPresetId,
           provider: document.getElementById("cfg-provider").value,
           model: document.getElementById("cfg-model").value.trim(),
@@ -1527,6 +1675,7 @@ export function renderHtmlReport(
           api_key: document.getElementById("cfg-api-key").value.trim(),
           budget_usd: Number(document.getElementById("cfg-budget").value || 1.5),
           effort: document.getElementById("cfg-effort").value,
+          enable_line_audit: document.getElementById("cfg-enable-line-audit").checked,
           enable_judge: document.getElementById("cfg-enable-judge").checked,
           enable_review: document.getElementById("cfg-enable-review").checked,
           judge_provider: document.getElementById("cfg-judge-provider").value,
@@ -1536,8 +1685,19 @@ export function renderHtmlReport(
         };
       }
 
-      function populateSettingsForm(s) {
+      function populateSettingsForm(s, detectedClis) {
         selectedPresetId = s.preset || "deepseek";
+        document.getElementById("cfg-explainer-mode").value = s.explainer_mode || "author_cli";
+        document.getElementById("cfg-author-cli").value = s.author_cli || "auto";
+        if (detectedClis) {
+          const cliEl = document.getElementById("detected-clis");
+          cliEl.innerHTML =
+            '<span class="badge ' + (detectedClis.codex?.available ? "b-green" : "b-slate") + '">' +
+            (detectedClis.codex?.available ? "✓ " + esc(detectedClis.codex.version || "codex") : "codex not found") +
+            '</span><span class="badge ' + (detectedClis.claude?.available ? "b-green" : "b-slate") + '">' +
+            (detectedClis.claude?.available ? "✓ " + esc(detectedClis.claude.version || "claude") : "claude not found") +
+            "</span>";
+        }
         document.getElementById("cfg-provider").value = s.provider || "deepseek";
         document.getElementById("cfg-model").value = s.model || "";
         document.getElementById("cfg-base-url").value = s.base_url || "";
@@ -1547,6 +1707,7 @@ export function renderHtmlReport(
           : "(Not saved yet)";
         document.getElementById("cfg-budget").value = s.budget_usd ?? 1.5;
         document.getElementById("cfg-effort").value = s.effort || "standard";
+        document.getElementById("cfg-enable-line-audit").checked = s.enable_line_audit !== false;
         document.getElementById("cfg-enable-judge").checked = Boolean(s.enable_judge);
         document.getElementById("cfg-enable-review").checked = Boolean(s.enable_review);
         document.getElementById("cfg-intent").value = ledger.overview.declared_intent || "";
@@ -1565,7 +1726,7 @@ export function renderHtmlReport(
         statusEl.className = "status-msg";
         if (!LIVE_SERVER) {
           staticNote.style.display = "block";
-          staticNote.textContent = "Static offline HTML mode: run 'diffgloss ui' or 'diffgloss inspect --serve' to configure API keys and re-run explanations directly in the browser.";
+          staticNote.textContent = "Static offline HTML mode: run 'diffgloss ui' or open Diffgloss.app to configure API keys and re-run explanations directly in the page.";
           liveBody.style.display = "none";
           return;
         }
@@ -1575,7 +1736,7 @@ export function renderHtmlReport(
           const res = await fetch("/api/settings");
           const data = await res.json();
           presetsCache = data.presets || [];
-          populateSettingsForm(data.settings || {});
+          populateSettingsForm(data.settings || {}, data.detected_clis);
         } catch (err) {
           setStatus("err", "Failed to load settings: " + err.message);
         }
@@ -1647,36 +1808,27 @@ export function renderHtmlReport(
       document.getElementById("cfg-run-btn").addEventListener("click", async () => {
         const btn = document.getElementById("cfg-run-btn");
         btn.disabled = true;
-        btn.textContent = "Running Explain...";
-        setStatus("info", "Saving settings & running Diffgloss explanation pipeline...");
-        try {
-          const payload = collectSettingsPayload();
-          const res = await fetch("/api/explain", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              settings: payload,
-              declared_intent: document.getElementById("cfg-intent").value.trim(),
-              enable_judge: payload.enable_judge,
-              enable_review: payload.enable_review,
-            }),
-          });
-          const data = await res.json();
-          if (data.ok && data.ledger) {
-            ledger = data.ledger;
-            renderHeader();
-            renderBody();
-            setStatus("ok", "Done! Coverage: " + ledger.coverage.explained + " explained / " + ledger.coverage.collapsed + " collapsed / " + ledger.coverage.unexplained + " unexplained.");
-            setTimeout(() => modal.classList.remove("open"), 900);
-          } else {
-            setStatus("err", data.error || "Explain failed");
-          }
-        } catch (err) {
-          setStatus("err", err.message);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = "▶ Run Explain Now";
-        }
+        btn.textContent = "Running...";
+        setStatus("info", "Saving settings & streaming Diffgloss explanation + line audit...");
+        const payload = collectSettingsPayload();
+        modal.classList.remove("open");
+        await runExplainWithStream(
+          {
+            settings: payload,
+            declared_intent: document.getElementById("cfg-intent").value.trim(),
+            enable_line_audit: payload.enable_line_audit,
+            enable_judge: payload.enable_judge,
+            enable_review: payload.enable_review,
+          },
+          (ok, info) => {
+            if (!ok) {
+              modal.classList.add("open");
+              setStatus("err", String(info || "Explain failed"));
+            }
+          },
+        );
+        btn.disabled = false;
+        btn.textContent = "▶ Run Explain Now";
       });
 
       document.addEventListener("keydown", (ev) => {
