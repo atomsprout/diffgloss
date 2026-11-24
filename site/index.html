@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Diffgloss — Explainability-First Code Review Ledger</title>
-  <meta name="description" content="Turn chaotic AI-authored git diffs into a verifiable explainability ledger with mechanical file:line citations, symmetric-proof review, and an interactive 3D-clear browser tour." />
+  <meta name="description" content="Native macOS & Windows desktop app and CLI that turns AI-authored git diffs into a verifiable explainability ledger: your coding agent explains, an independent reviewer audits every changed line." />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -20,9 +20,10 @@
       <a class="brand" href="#">
         <span class="brand-gem" aria-hidden="true">◆</span>
         <span class="brand-name">diffgloss</span>
-        <span class="brand-ver">v0.2.0</span>
+        <span class="brand-ver">v0.3.0</span>
       </a>
       <div class="nav-links">
+        <a href="#desktop">Desktop App</a>
         <a href="#pipeline">Architecture</a>
         <a href="#sandbox">Live Demo</a>
         <a href="#features">Capabilities</a>
@@ -40,7 +41,7 @@
       <div class="hero-copy">
         <div class="pill-badge">
           <span class="pulse-dot"></span>
-          Apache-2.0 · Zero Runtime Dependencies · Node 20+ &amp; Bun
+          v0.3.0 · macOS &amp; Windows Native App · Dual-Role Line Auditor
         </div>
         <h1>
           Stop guessing what<br />
@@ -49,23 +50,24 @@
         </h1>
         <p class="hero-sub">
           <strong>gloss</strong> <em>(noun)</em> — an interlinear annotation illuminating a manuscript.
-          <strong>Diffgloss</strong> turns any git diff or commit into a <strong>verifiable explainability ledger</strong>:
-          every hunk is mechanically accounted for as
+          Drop any Git repository onto <strong>Diffgloss</strong>: your authoring coding agent
+          (<code>codex</code> / <code>claude</code>) explains its edits, while an independent Reviewer
+          <strong>audits every single changed line</strong> so every hunk is accounted for as
           <span class="tok-green">explained</span>,
           <span class="tok-slate">collapsed</span>, or
           <span class="tok-red">unexplained</span>.
         </p>
 
         <div class="hero-actions">
-          <a class="btn-primary" href="#quickstart">Get Started in 30s</a>
-          <a class="btn-ghost" href="#sandbox">Try Interactive Ledger ↓</a>
-          <a class="btn-ghost" href="https://github.com/atomsprout/diffgloss/releases/tag/v0.2.0" target="_blank" rel="noopener">Release v0.2.0</a>
+          <a class="btn-primary" href="#desktop">Download App</a>
+          <a class="btn-ghost" href="#sandbox">Live Ledger ↓</a>
+          <a class="btn-ghost" href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.0" target="_blank" rel="noopener">v0.3.0 Release ↗</a>
         </div>
 
         <div class="hero-stats">
           <div class="stat-pill">
             <span class="stat-val" data-count="100" data-suffix="%">100%</span>
-            <span class="stat-lbl">Coverage Invariant</span>
+            <span class="stat-lbl">Line-Audited Coverage</span>
           </div>
           <div class="stat-pill">
             <span class="stat-val" data-count="100" data-suffix="%">100%</span>
@@ -94,7 +96,7 @@
             <div class="plate-head">
               <span class="dots"><i></i><i></i><i></i></span>
               <span class="mono">src/auth/session.ts · +14 −6</span>
-              <span class="scan-chip">AST Sub-Hunk Split</span>
+              <span class="scan-chip">AST Split · Line Audit</span>
             </div>
             <div class="scan-beam" aria-hidden="true"></div>
             <pre class="code-plate"><code><span class="ln">12</span>  export async function touchSession(session) {
@@ -133,13 +135,13 @@
           <!-- Floating Right Gloss Card: Verified What + Why -->
           <div class="layer layer-gloss-ok">
             <div class="gloss-head">
-              <span class="chip chip-green">citations_valid ✓</span>
-              <span class="chip chip-cyan">judge_passed ✓</span>
+              <span class="chip chip-green">audit: verified ✓</span>
+              <span class="chip chip-cyan">codex-cli (Role A)</span>
             </div>
             <p class="gloss-title"><code>touchSession</code> · L15–17</p>
             <p class="gloss-body">Rejects expired sessions early, then extends <code>expiresAt</code> by <code>SLIDING_TTL_MS</code>.</p>
             <div class="gloss-foot">
-              <span class="mono">Why: declared_intent</span>
+              <span class="mono">4/4 lines verified</span>
               <span class="cite-pill">session.ts:15-17</span>
             </div>
           </div>
@@ -147,14 +149,14 @@
           <!-- Floating Bottom-Right Alert Card: Unexplained Guard Removal -->
           <div class="layer layer-gloss-alert">
             <div class="gloss-head">
-              <span class="chip chip-red">UNEXPLAINED</span>
+              <span class="chip chip-red">audit: contradicted ✗</span>
               <span class="chip chip-amber">safety_check_removed</span>
             </div>
             <p class="gloss-title"><code>verifySession</code> · L31–33</p>
             <p class="gloss-body">Revoked-session guard deleted despite intent saying <em>"Do NOT weaken revoked checks."</em></p>
             <div class="gloss-foot">
-              <span class="mono">Cold Verifier:</span>
-              <span class="chip chip-red">refuted ✗</span>
+              <span class="mono">Role B Auditor:</span>
+              <span class="chip chip-red">demoted → unexplained</span>
             </div>
           </div>
         </div>
@@ -162,13 +164,114 @@
     </div>
   </header>
 
+  <!-- NEW V0.3 SECTION: NATIVE DESKTOP APP + DUAL-ROLE ARCHITECTURE -->
+  <section id="desktop" class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">NEW IN V0.3.0 · NATIVE DESKTOP &amp; DUAL-ROLE AUDIT</span>
+        <h2>Drop a Git folder. Let the author explain — and an independent reviewer audit every line.</h2>
+        <p>Packaged with Tauri v2 and a standalone embedded <code>diffgloss-engine</code> sidecar (zero Node or Bun install needed). Real-time SSE progress streams each stage as it finishes.</p>
+      </div>
+
+      <div class="desktop-grid">
+        <!-- Left: Interactive macOS Desktop Window + Drag-and-Drop Simulator -->
+        <div class="desktop-window">
+          <div class="win-titlebar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="mono win-title">Diffgloss.app — Native Desktop (Tauri v2)</span>
+            <span class="chip chip-green">Sidecar Ready</span>
+          </div>
+
+          <div class="drop-sim" id="drop-sim">
+            <div class="drop-sim-head">
+              <div class="drop-icon" aria-hidden="true">📂</div>
+              <div>
+                <strong id="drop-sim-title">Drag &amp; drop any local Git repository folder</strong>
+                <p id="drop-sim-sub">Loads Working Tree immediately (or latest <code>HEAD</code> commit when clean), then streams Explain → Line Audit → Symmetric Proof.</p>
+              </div>
+            </div>
+
+            <div class="drop-progress" id="drop-progress" hidden>
+              <div class="drop-prog-top">
+                <span class="mono" id="drop-stage-label">Explaining via Role A...</span>
+                <span class="mono" id="drop-stage-pct">0%</span>
+              </div>
+              <div class="drop-prog-track"><div class="drop-prog-fill" id="drop-prog-fill"></div></div>
+              <div class="drop-events mono" id="drop-events"></div>
+            </div>
+
+            <div class="drop-sim-actions">
+              <button class="btn-primary btn-sm" id="sim-drop-btn" type="button">▶ Simulate Repo Drop (SSE Stream)</button>
+              <span class="mono drop-cache-hint" id="drop-cache-hint">Cache: .diffgloss/cache/&lt;hunk_id&gt;.json</span>
+            </div>
+          </div>
+
+          <div class="download-bar">
+            <div class="dl-label">Download Native v0.3.0 Installers</div>
+            <div class="dl-buttons">
+              <a class="dl-btn" href="https://github.com/atomsprout/diffgloss/releases/download/v0.3.0/Diffgloss_0.3.0_aarch64.dmg">
+                <strong>macOS Apple Silicon</strong>
+                <span>M1/M2/M3/M4 · .dmg</span>
+              </a>
+              <a class="dl-btn" href="https://github.com/atomsprout/diffgloss/releases/download/v0.3.0/Diffgloss_0.3.0_x64.dmg">
+                <strong>macOS Intel</strong>
+                <span>x86_64 · .dmg</span>
+              </a>
+              <a class="dl-btn" href="https://github.com/atomsprout/diffgloss/releases/download/v0.3.0/Diffgloss_0.3.0_x64-setup.exe">
+                <strong>Windows x64</strong>
+                <span>NSIS · -setup.exe</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Dual-Role Author -> Auditor Trust Boundary Diagram -->
+        <div class="dual-role-panel">
+          <div class="role-card role-a">
+            <div class="role-badge-row">
+              <span class="chip chip-amber">ROLE A · EXPLAINER (DEFAULT)</span>
+              <span class="mono role-switch-note">Configurable: Author CLI ↔ API Model A</span>
+            </div>
+            <h3>Author's Coding Agent Explains Its Own Diff</h3>
+            <p>Connects read-only to the agent that actually wrote the code — capturing real design intent without letting it touch your working tree.</p>
+            <div class="role-cli-pills mono">
+              <span>✓ codex exec -s read-only</span>
+              <span>✓ claude -p --permission-mode plan --fork-session</span>
+              <span>↺ Auto-fallback → API Model A</span>
+            </div>
+          </div>
+
+          <div class="role-divider">
+            <span class="role-arrow">↓</span>
+            <span class="mono">Strict Cold-Start Isolation (No Shared Thread)</span>
+            <span class="role-arrow">↓</span>
+          </div>
+
+          <div class="role-card role-b">
+            <div class="role-badge-row">
+              <span class="chip chip-cyan">ROLE B · INDEPENDENT LINE AUDITOR</span>
+              <span class="mono role-switch-note">Checks 100% of +/- Diff Lines</span>
+            </div>
+            <h3>Independent Reviewer Audits Every Changed Line</h3>
+            <p>Reads only the numbered <code>+</code>/<code>-</code> diff lines and Role A's claim. Catches silent omissions and contradictory explanations line by line.</p>
+            <div class="verdict-pills">
+              <span class="chip chip-green">verified ✓</span>
+              <span class="chip chip-amber">omission_detected ⚠ (amber highlight)</span>
+              <span class="chip chip-red">contradicted ✗ (demoted → unexplained)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ANIMATED 5-STAGE ARCHITECTURE PIPELINE -->
   <section id="pipeline" class="section">
     <div class="container">
       <div class="section-head">
         <span class="eyebrow">GLASS-BOX ARCHITECTURE</span>
-        <h2>Five stages from raw patch to verifiable truth</h2>
-        <p>Click any stage to inspect how Diffgloss balances sub-second deterministic filtering with blind-first verification and strict author/reviewer isolation.</p>
+        <h2>Five stages from raw patch to line-audited truth</h2>
+        <p>Click any stage to inspect how Diffgloss combines sub-second AST preprocessing, Author CLI explanation, independent line auditing, and symmetric-proof review.</p>
       </div>
 
       <div class="pipeline-visual">
@@ -190,7 +293,7 @@
           <button class="pipe-node active" data-stage="0">
             <span class="node-num c-blue">01</span>
             <strong>Ingest &amp; AST Split</strong>
-            <span>&lt; 1s deterministic</span>
+            <span>&lt; 1s · Hunk Cache</span>
           </button>
           <button class="pipe-node" data-stage="1">
             <span class="node-num c-purple">02</span>
@@ -199,18 +302,18 @@
           </button>
           <button class="pipe-node" data-stage="2">
             <span class="node-num c-amber">03</span>
-            <strong>Blind-First Explain</strong>
-            <span>Citations + Judge</span>
+            <strong>Role A Explain</strong>
+            <span>Codex/Claude · API A</span>
           </button>
           <button class="pipe-node" data-stage="3">
             <span class="node-num c-red">04</span>
-            <strong>Symmetric Proof</strong>
-            <span>Isolated Find &amp; Verify</span>
+            <strong>Role B Line Audit</strong>
+            <span>Every +/- Line + Proof</span>
           </button>
           <button class="pipe-node" data-stage="4">
             <span class="node-num c-green">05</span>
-            <strong>Ledger Surfaces</strong>
-            <span>Browser · PR · MCP</span>
+            <strong>Desktop &amp; Surfaces</strong>
+            <span>Tauri · SSE · PR · MCP</span>
           </button>
         </div>
 
@@ -224,16 +327,17 @@
     <div class="container">
       <div class="section-head">
         <span class="eyebrow">INTERACTIVE PREVIEW</span>
-        <h2>Experience the Coverage Ledger live</h2>
-        <p>Switch real AI-authored diff scenarios, click <code>file:line</code> citations to jump into code, expand Symmetric Proof dismissals, or toggle Self-Check mode.</p>
+        <h2>Experience the Dual-Role Coverage Ledger live</h2>
+        <p>Switch real AI-authored diff scenarios, inspect Author CLI vs. Role-B Line Audit verdicts, click <code>file:line</code> citations, or toggle Self-Check mode.</p>
       </div>
 
       <div class="demo-shell">
         <div class="demo-topbar">
           <div class="demo-tabs" id="demo-tabs">
-            <button class="demo-tab active" data-demo="0">1. Auth Guard Removed</button>
-            <button class="demo-tab" data-demo="1">2. SQL Injection + Symmetric Proof</button>
-            <button class="demo-tab" data-demo="2">3. Weakened Test + Silent Catch</button>
+            <button class="demo-tab active" data-demo="0">1. Omission Caught by Line Auditor</button>
+            <button class="demo-tab" data-demo="1">2. Auth Guard Contradicted</button>
+            <button class="demo-tab" data-demo="2">3. SQL Injection + Symmetric Proof</button>
+            <button class="demo-tab" data-demo="3">4. Weakened Test + Silent Catch</button>
           </div>
           <div class="demo-controls">
             <button class="mini-btn" id="demo-selfcheck">Self-Check: Off</button>
@@ -250,44 +354,44 @@
       <div class="section-head">
         <span class="eyebrow">ENGINEERED FOR TRUST</span>
         <h2>Built from hard empirical lessons</h2>
-        <p>Every mechanism in Diffgloss directly counters a documented failure mode of AI code review: unfaithful prose, comment fatigue, and author-anchoring bias.</p>
+        <p>Every mechanism in Diffgloss directly counters a documented failure mode of AI code review: unfaithful prose, silent omissions, comment fatigue, and author-anchoring bias.</p>
       </div>
 
       <div class="feature-grid">
         <article class="tilt-card">
+          <div class="feat-icon c-amber">⌘</div>
+          <h3>Native Tauri v2 Desktop App</h3>
+          <p>Lightweight macOS &amp; Windows app bundling a compiled <code>diffgloss-engine</code> sidecar. Drag any local Git repository folder onto the window to inspect diffs &amp; commits with real-time SSE streaming.</p>
+        </article>
+
+        <article class="tilt-card">
+          <div class="feat-icon c-cyan">⇆</div>
+          <h3>Author Explains → Independent Audits</h3>
+          <p>Role A connects read-only to local <strong>Codex CLI</strong> or <strong>Claude Code CLI</strong> (or configurable API Model A). Cold-start Role B verifies every <code>+</code>/<code>-</code> line and highlights omissions in amber.</p>
+        </article>
+
+        <article class="tilt-card">
           <div class="feat-icon c-green">✓</div>
-          <h3>Mechanical Citation Grounding</h3>
-          <p>Separates structural grounding (<code>citations_valid</code>: exact line bounds &amp; verbatim symbols) from semantic verification (<code>judge_passed</code>). Failed citations trigger 1x repair, then honest demotion to <code>unexplained</code>.</p>
+          <h3>Mechanical Citations &amp; Hunk Cache</h3>
+          <p>Checks exact line bounds &amp; verbatim symbols (<code>citations_valid</code>) with 1x repair and honest demotion. Content-addressed <code>.diffgloss/cache/</code> makes repeated repo reviews instant and free.</p>
         </article>
 
         <article class="tilt-card">
           <div class="feat-icon c-blue">⑂</div>
           <h3>Multi-Language AST Sub-Hunks</h3>
-          <p>Lexer-aware scope tracking across TypeScript, JavaScript, Python, Go, Rust, Java &amp; C++ splits oversized hunks along real method/function boundaries so sneaky edits can't hide inside a 150-line diff.</p>
-        </article>
-
-        <article class="tilt-card">
-          <div class="feat-icon c-purple">⚙</div>
-          <h3>Zero-Env-Var Browser Workbench</h3>
-          <p>Run <code>diffgloss ui</code> once. Switch any local git repo or click any commit in history, pick from 10 one-click model presets (DeepSeek, Claude, OpenAI, Gemini, OpenRouter, Ollama…), test connection, and run Explain in-page.</p>
+          <p>Lexer-aware scope tracking across TypeScript, JavaScript, Python, Go, Rust, Java &amp; C++ splits oversized hunks along real function boundaries so sneaky edits cannot hide in big patches.</p>
         </article>
 
         <article class="tilt-card">
           <div class="feat-icon c-red">⚖</div>
           <h3>Symmetric-Proof Review</h3>
-          <p>Inspired by Google Sashiko: parallel narrow specialists output both verified bugs and <strong>Ruled-Out Concerns</strong> with concrete code proof. Shaky self-dismissals are automatically escalated to cold verification.</p>
+          <p>Parallel narrow specialists output both verified bugs and <strong>Ruled-Out Concerns</strong> with concrete code proof. Shaky self-dismissals are automatically escalated to cold verification.</p>
         </article>
 
         <article class="tilt-card">
-          <div class="feat-icon c-amber">⛓</div>
-          <h3>4-Tier Provenance &amp; Redaction</h3>
-          <p>Captures write-time Claude Code hooks (<code>PostToolUse</code> + <code>Stop</code> gate), auto-discovers local Claude/Codex transcripts, reads Git AI / Agent Trace / Entire, and strips API keys, JWTs &amp; PEM blocks before persistence.</p>
-        </article>
-
-        <article class="tilt-card">
-          <div class="feat-icon c-cyan">⌘</div>
-          <h3>MCP, SARIF &amp; GitHub PR Sync</h3>
-          <p>Runs as a native MCP stdio server for coding agents, imports/exports SARIF 2.1.0 &amp; reviewdog <code>rdjsonl</code>, and syncs sticky ledger comments with fingerprinted inline reconciliation on GitHub PRs.</p>
+          <div class="feat-icon c-purple">⚙</div>
+          <h3>In-Page Models, MCP &amp; SARIF</h3>
+          <p>10 one-click provider presets (DeepSeek, Claude, OpenAI, Gemini, OpenRouter, Ollama, Qwen, Kimi, GLM) saved locally with <code>chmod 600</code>, plus MCP stdio server, SARIF 2.1.0 &amp; GitHub PR sync.</p>
         </article>
       </div>
     </div>
@@ -325,8 +429,8 @@
             <span class="metric-lbl">Total Cost (12 Cases)</span>
           </div>
           <div class="metric-box">
-            <span class="metric-big">25 / 25</span>
-            <span class="metric-lbl">Unit &amp; Integration Tests</span>
+            <span class="metric-big">28 / 28</span>
+            <span class="metric-lbl">Tests (111 Assertions)</span>
           </div>
         </div>
       </div>
@@ -339,38 +443,37 @@
       <div class="section-head">
         <span class="eyebrow">30-SECOND SETUP</span>
         <h2>Start reviewing with clarity</h2>
-        <p>Zero runtime dependencies. Works out of the box on Node 20+ and Bun 1.2+.</p>
+        <p>Install the native macOS/Windows app — or run straight from CLI with Node 20+ or Bun 1.2+.</p>
       </div>
 
       <div class="code-cards">
         <div class="cmd-card">
           <div class="cmd-head">
-            <span>1. Launch Local Browser Workbench (No Env Vars Needed)</span>
-            <button class="copy-btn" data-copy="git clone https://github.com/atomsprout/diffgloss.git && cd diffgloss && bun install && bun run build && node dist/cli.js ui">Copy</button>
+            <span>1. Native Desktop App (Build or Download v0.3.0)</span>
+            <button class="copy-btn" data-copy="git clone https://github.com/atomsprout/diffgloss.git && cd diffgloss/desktop && bun run build:all">Copy</button>
           </div>
-          <pre><code>git clone https://github.com/atomsprout/diffgloss.git
-cd diffgloss
-bun install &amp;&amp; bun run build
+          <pre><code># Or download prebuilt .dmg / .exe from GitHub Releases (v0.3.0)
+git clone https://github.com/atomsprout/diffgloss.git
+cd diffgloss/desktop
+bun run build:all
 
-# Opens interactive browser workbench on http://127.0.0.1:4317
-# Click "📂 Repo / Commit" to pick any repo or commit, and "⚙ Models" to configure keys!
-node dist/cli.js ui</code></pre>
+# Launch native macOS app &amp; drag any Git repo folder onto the window!
+open src-tauri/target/release/bundle/macos/Diffgloss.app</code></pre>
         </div>
 
         <div class="cmd-card">
           <div class="cmd-head">
-            <span>2. CI Gate, SARIF &amp; MCP Server</span>
-            <button class="copy-btn" data-copy="node dist/cli.js explain main..HEAD --provider deepseek --judge --review --sarif-out .diffgloss/out.sarif && node dist/cli.js validate .diffgloss/ledger.json --max-unexplained 0">Copy</button>
+            <span>2. Dual-Role CLI, Line Auditor &amp; Browser Workbench</span>
+            <button class="copy-btn" data-copy="node dist/cli.js explain main..HEAD --explainer-mode author_cli --audit --review --serve">Copy</button>
           </div>
-          <pre><code># Full blind-first explain + semantic judge + symmetric-proof review
-node dist/cli.js explain main..HEAD --provider deepseek --judge --review \
-  --sarif-out .diffgloss/out.sarif
+          <pre><code># Launch zero-env-var local browser workbench (configure Role A &amp; B in-page)
+node dist/cli.js ui
+
+# Dual-role CLI: Author Agent (Codex/Claude) explains -&gt; Independent Line Auditor checks every line
+node dist/cli.js explain main..HEAD --explainer-mode author_cli --audit --review --serve
 
 # Enforce zero unexplained hunks in CI (exit code 2 on violation)
-node dist/cli.js validate .diffgloss/ledger.json --max-unexplained 0
-
-# Start MCP stdio server for Claude Code / Codex / Cursor
-node dist/cli.js mcp</code></pre>
+node dist/cli.js validate .diffgloss/ledger.json --max-unexplained 0</code></pre>
         </div>
       </div>
     </div>
@@ -379,13 +482,13 @@ node dist/cli.js mcp</code></pre>
   <footer class="footer">
     <div class="container footer-inner">
       <div>
-        <span class="brand-gem">◆</span> <strong>Diffgloss</strong> · Apache-2.0 Open Source
+        <span class="brand-gem">◆</span> <strong>Diffgloss v0.3.0</strong> · Apache-2.0 Open Source
       </div>
       <div class="footer-links">
         <a href="https://github.com/atomsprout/diffgloss" target="_blank" rel="noopener">Repository</a>
-        <a href="https://github.com/atomsprout/diffgloss/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture</a>
+        <a href="https://github.com/atomsprout/diffgloss/blob/main/docs/v0.3-desktop-architecture.md" target="_blank" rel="noopener">v0.3 Architecture</a>
         <a href="https://github.com/atomsprout/diffgloss/blob/main/schemas/explanation.schema.json" target="_blank" rel="noopener">JSON Schema</a>
-        <a href="https://github.com/atomsprout/diffgloss/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/atomsprout/diffgloss/releases/tag/v0.3.0" target="_blank" rel="noopener">Releases (v0.3.0)</a>
       </div>
     </div>
   </footer>

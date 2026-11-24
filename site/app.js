@@ -72,18 +72,84 @@
     });
   });
 
+  // 2b. Desktop Repo Drop + SSE Streaming Simulator
+  const simBtn = document.getElementById("sim-drop-btn");
+  const dropSim = document.getElementById("drop-sim");
+  const dropProgress = document.getElementById("drop-progress");
+  const dropTitle = document.getElementById("drop-sim-title");
+  const dropSub = document.getElementById("drop-sim-sub");
+  const dropLabel = document.getElementById("drop-stage-label");
+  const dropPct = document.getElementById("drop-stage-pct");
+  const dropFill = document.getElementById("drop-prog-fill");
+  const dropEvents = document.getElementById("drop-events");
+  let simTimers = [];
+
+  simBtn?.addEventListener("click", () => {
+    simTimers.forEach((t) => clearTimeout(t));
+    simTimers = [];
+    if (!dropSim || !dropProgress || !dropFill || !dropEvents) return;
+
+    dropSim.classList.add("active");
+    dropProgress.hidden = false;
+    dropTitle.textContent = "Dropped: ~/workspace/payment-gateway (HEAD: 8f31c2a)";
+    dropSub.innerHTML = "AST parsed <strong>6 hunks</strong> in 42ms · 2 cache hits · streaming SSE dual-role verification...";
+    dropEvents.innerHTML = "";
+    dropFill.style.width = "10%";
+    dropLabel.textContent = "Stage 1/3 · AST Split & Hunk Cache";
+    dropPct.textContent = "15%";
+    simBtn.disabled = true;
+    simBtn.textContent = "Streaming SSE...";
+
+    const steps = [
+      {
+        ms: 350,
+        pct: 38,
+        label: "Stage 1/3 · Role A Explaining via codex-cli (read-only)",
+        line: '<span class="ev-ok">✓ Role A [codex-cli]: explained 4/4 substantive hunks (2 loaded from disk cache)</span>',
+      },
+      {
+        ms: 950,
+        pct: 72,
+        label: "Stage 2/3 · Role B Line Auditor checking 39 +/- diff lines",
+        line: '<span class="ev-warn">⚠ Role B [independent]: omission_detected on src/billing/retry.ts line 44 (timeout increased 3s → 30s)</span>',
+      },
+      {
+        ms: 1550,
+        pct: 100,
+        label: "Stage 3/3 · Complete — 4 explained, 1 collapsed, 1 flagged",
+        line: '<span class="ev-ok">✓ Ledger ready: 100% coverage invariant · amber line highlight pinned for review</span>',
+        done: true,
+      },
+    ];
+
+    steps.forEach((s) => {
+      const id = setTimeout(() => {
+        dropFill.style.width = s.pct + "%";
+        dropLabel.textContent = s.label;
+        dropPct.textContent = s.pct + "%";
+        dropEvents.insertAdjacentHTML("beforeend", "<div>" + s.line + "</div>");
+        if (s.done) {
+          dropSim.classList.remove("active");
+          simBtn.disabled = false;
+          simBtn.textContent = "↻ Replay Repo Drop Simulation";
+        }
+      }, s.ms);
+      simTimers.push(id);
+    });
+  });
+
   // 3. Interactive 5-Stage Pipeline Explorer
   const STAGES = [
     {
-      title: "01 · Deterministic Ingestion & Multi-Language AST Splitting (<1s)",
-      desc: "Before spending a single LLM token, Diffgloss parses the unified diff, strips secrets & binaries, splits oversized hunks along real function/method scopes, detects cross-file verbatim moves, and collapses mechanical noise.",
+      title: "01 · Deterministic Ingestion, AST Splitting & Hunk Cache (<1s)",
+      desc: "Before spending a single LLM token, Diffgloss parses the unified diff, strips secrets & binaries, splits oversized hunks along real function scopes, collapses mechanical noise, and checks content-addressed disk cache.",
       bullets: [
-        "Content-hash hunk_id resilient to minor line shifts",
+        "Content-hash hunk_id + .diffgloss/cache/<hash>.json for zero-cost repeat reviews",
         "Lexer-aware AST scope splitter (TS, JS, Python, Go, Rust, Java, C++)",
         "Skips .env*, *.pem, *.key and collapses lockfiles/whitespace/renames",
         "Flags weakened test assertions, removed safety guards, and silent catch blocks",
       ],
-      code: `// Coverage invariant enforced on every hunk\ncoverage.total === explained + collapsed + unexplained\n\n// Never hides substantive edits\nfalse_mechanical_collapses === 0`,
+      code: `// Coverage invariant enforced on every hunk\ncoverage.total === explained + collapsed + unexplained\n\n// Content-addressed hunk cache key\nsha256(hunk_id + patch + intent + explainer + model)`,
     },
     {
       title: "02 · 4-Tier Provenance Capture & Secret Redaction",
@@ -97,37 +163,37 @@
       code: `// Base-branch trust boundary prevents PR prompt injection\nREVIEW.md / AGENTS.md / CLAUDE.md -> git show <base_ref>:<path>\n.diffgloss/rules/*.md             -> scoped YAML + telemetry`,
     },
     {
-      title: "03 · Blind-First Explanation & Mechanical Grounding",
-      desc: "The explainer reads only the diff, base rules, and declared intent—never author self-defense. Every explained hunk must pass mechanical file:line and backticked-symbol verification.",
+      title: "03 · Role A Explanation (Author Coding Agent or API Model A)",
+      desc: "By default, Diffgloss asks the authoring coding agent (Codex CLI or Claude Code CLI, strictly read-only & fork-safe) to explain its own changes—or switches in 1 click to an independent API Model A.",
       bullets: [
+        "Auto-detects installed `codex` and `claude` CLIs with seamless fallback to API Model A",
+        "Mechanical file:line and verbatim backticked-symbol citation check + 1x repair",
         "Hard USD budget guard + pre-run --dry-run cost estimation",
-        "1x targeted citation repair loop; failed hunks honestly demote to 'unexplained'",
-        "Strict UI split: structural citations_valid vs. cold-start semantic_grounding",
-        "Works with DeepSeek, Anthropic (prompt cached), OpenAI, Gemini, OpenRouter & Ollama",
+        "Supports DeepSeek, Anthropic, OpenAI, Gemini, OpenRouter, Ollama, Qwen, Kimi & GLM",
       ],
-      code: `"what": {\n  "citations": [{ "path": "src/auth/session.ts", "lines": [15, 17], "side": "new" }],\n  "citations_valid": true,\n  "semantic_grounding": "judge_passed"\n}`,
+      code: `"explainer_meta": {\n  "mode": "author_cli",\n  "adapter": "codex-cli",\n  "cached": false\n}`,
     },
     {
-      title: "04 · Isolated Symmetric-Proof Bug Review & Q&A Verifier",
-      desc: "Parallel narrow specialists (Logic/Correctness + Security/Rules) NEVER see author answers. Every bug claim and every ruled-out dismissal requires concrete code proof.",
+      title: "04 · Role B Independent Line Auditor & Symmetric Proof",
+      desc: "A cold-start Reviewer (never sharing Role A's thread) verifies EVERY +/- diff line against the explanation, catching silent omissions and contradictions—alongside isolated bug specialists.",
       bullets: [
-        "Outputs both verified findings and Ruled-Out Concerns with code proof",
-        "Shaky self-dismissals ('probably checked upstream') auto-escalate to verification",
-        "Cold-start verifier checks human/agent answers: confirmed | refuted | unverifiable",
-        "Refuted answers stay pinned at the top as unexplained",
+        "Line-by-line audit verdicts: verified | omission_detected | contradicted",
+        "Omitted lines highlighted directly in amber inside the unified diff viewer",
+        "Contradicted explanations automatically demote to 'unexplained' with critical finding",
+        "Symmetric Proof specialists emit both verified bugs and proven Ruled-Out Concerns",
       ],
-      code: `"ruled_out": [{\n  "specialist": "logic-correctness",\n  "suspicion": "Off-by-one at expiresAt === now boundary",\n  "proof": "Both touchSession (<= now) and verifySession (> now) treat === now as expired."\n}]`,
+      code: `"audit": {\n  "status": "omission_detected",\n  "auditor_model": "deepseek-chat",\n  "covered_lines": [41, 42],\n  "omitted_lines": [44],\n  "note": "Explanation omitted retry timeout increase from 3s to 30s."\n}`,
     },
     {
-      title: "05 · Multi-Surface Outputs & Local Workbench",
-      desc: "One language-neutral JSON ledger projects cleanly into an offline interactive browser tour, GitHub PR sticky comments, SARIF 2.1.0, reviewdog rdjsonl, and an MCP stdio server.",
+      title: "05 · Native Desktop App (Tauri v2), SSE Streaming & CI Surfaces",
+      desc: "Drop any local Git repository onto Diffgloss.app on macOS or Windows—powered by an embedded diffgloss-engine sidecar streaming SSE progress—or export to GitHub PR, SARIF, rdjsonl, and MCP.",
       bullets: [
-        "diffgloss ui: switch any local git repo or click any commit in history",
-        "In-page ⚙ Models modal: 10 presets, Test Connection & Run Explain Now",
-        "GitHub PR incremental fingerprint reconciliation (auto-resolves fixed comments)",
-        "Native MCP tools: diffgloss_inspect, explain_hunk, list_rules, record_answer",
+        "Native macOS (.dmg arm64/Intel) & Windows (.exe/.msi) via Tauri v2 + Bun sidecar",
+        "POST /api/explain-stream streams Explain -> Line Audit -> Review live",
+        "In-page ⚙ Models modal with Role A/B toggle & detected CLI status badges",
+        "Native MCP stdio server, SARIF 2.1.0 & GitHub PR sticky comment reconciliation",
       ],
-      code: `node dist/cli.js ui              # Interactive browser workbench\nnode dist/cli.js mcp             # MCP JSON-RPC 2.0 stdio server\nnode dist/cli.js pr-comment      # Sticky ledger + inline fingerprints`,
+      code: `open Diffgloss.app               # Drag & drop any local Git repo\nnode dist/cli.js ui              # Zero-env-var browser workbench\nnode dist/cli.js mcp             # MCP JSON-RPC 2.0 stdio server`,
     },
   ];
 
@@ -153,20 +219,49 @@
   });
   renderStage(0);
 
-  // 4. Interactive Mini-Ledger Demo
+  // 4. Interactive Mini-Ledger Demo (with Role A explainer_meta & Role B Line Audit)
   const DEMOS = [
+    {
+      path: "src/billing/retry.ts",
+      symbol: "fetchInvoiceWithRetry",
+      status: "explained",
+      risk: "high",
+      explainerLabel: "Role A: codex-cli",
+      auditStatus: "omission_detected",
+      auditLabel: "audit: omission_detected (L44)",
+      what: "Adds exponential backoff jitter to `fetchInvoiceWithRetry` on HTTP 503 responses.",
+      cite: { label: "src/billing/retry.ts:41-42 (new)", lines: [41, 42] },
+      citeValid: true,
+      semantic: "judge_passed",
+      whySource: "transcript",
+      why: "Author agent explained retry jitter for transient 503s, but omitted the 10x request timeout increase on line 44.",
+      proof: "Role-B Line Auditor (cold-start): checked 3 changed lines — lines 41–42 verified, line 44 OMITTED (`timeoutMs: 30_000` raised from `3_000`). Highlighted in amber below.",
+      omittedLines: [44],
+      rows: [
+        { n: 40, kind: "ctx", t: " export async function fetchInvoiceWithRetry(id: string) {" },
+        { n: 41, kind: "add", t: "+  const jitterMs = Math.floor(Math.random() * 250);" },
+        { n: 42, kind: "add", t: "+  const delayMs = BASE_DELAY_MS * attempt + jitterMs;" },
+        { n: 43, kind: "del", t: "-  return httpGet(`/invoices/${id}`, { timeoutMs: 3_000 });" },
+        { n: 44, kind: "add", t: "+  return httpGet(`/invoices/${id}`, { timeoutMs: 30_000 });" },
+        { n: 45, kind: "ctx", t: " }" },
+      ],
+    },
     {
       path: "src/auth/session.ts",
       symbol: "verifySession",
       status: "unexplained",
       risk: "high",
+      explainerLabel: "Role A: claude-cli",
+      auditStatus: "contradicted",
+      auditLabel: "audit: contradicted ✗",
       what: "Deletes the `session.revokedAt !== null` check in `verifySession`, leaving only expiration timestamp validation.",
       cite: { label: "src/auth/session.ts:31-33 (old)", lines: [31, 32, 33] },
       citeValid: true,
-      semantic: "judge_passed",
+      semantic: "judge_failed",
       whySource: "missing",
-      why: "Contradicts declared intent ('Do NOT weaken revoked session checks'). Cold verifier refuted author claim that gateway checks revocation.",
-      proof: "Trigger: safety_check_removed · Cold Verifier Verdict: REFUTED — no `revokedAt` check exists in gateway middleware.",
+      why: "Author claimed revocation is enforced in gateway middleware. Role-B Auditor contradicted the claim and demoted this hunk to `unexplained`.",
+      proof: "Role-B Line Auditor + Cold Verifier: CONTRADICTED — `revokedAt` is never checked in gateway middleware. Finding attached: `diffgloss/audit-contradiction`.",
+      omittedLines: [31, 32, 33],
       rows: [
         { n: 30, kind: "ctx", t: " export function verifySession(session: Session) {" },
         { n: 31, kind: "del", t: "-  if (session.revokedAt !== null) {" },
@@ -181,6 +276,9 @@
       symbol: "lookupUserByEmail",
       status: "explained",
       risk: "high",
+      explainerLabel: "Role A: deepseek-chat",
+      auditStatus: "verified",
+      auditLabel: "audit: verified ✓ (2/2 lines)",
       what: "Builds a raw SQL `query` by concatenating `email` directly into a SELECT clause and returns `db.query(query)`.",
       cite: { label: "src/db/users.ts:19-20 (new)", lines: [19, 20] },
       citeValid: true,
@@ -188,6 +286,7 @@
       whySource: "declared_intent",
       why: "Matches declared intent to add lookupUserByEmail helper, while isolated security specialist flagged SQL injection.",
       proof: "Symmetric Proof: [Verified Finding bug/security] SQL injection via string concatenation · [Ruled-Out ro_1] Checked touchSession vs verifySession boundary (<= vs >), proven consistent.",
+      omittedLines: [],
       rows: [
         { n: 18, kind: "ctx", t: " export async function lookupUserByEmail(email: string) {" },
         { n: 19, kind: "add", t: "+  const query = \"SELECT id, email FROM users WHERE email = '\" + email + \"'\";" },
@@ -200,6 +299,9 @@
       symbol: "describe('webhook')",
       status: "unexplained",
       risk: "high",
+      explainerLabel: "Role A: codex-cli",
+      auditStatus: "verified",
+      auditLabel: "audit: verified ✓ (2/2 lines)",
       what: "Removes the `rejects.toThrow('Invalid signature')` assertion and leaves a trivial `expect(true).toBe(true)` placeholder.",
       cite: { label: "tests/billing.test.ts:9-10 (old/new)", lines: [9, 10] },
       citeValid: true,
@@ -207,6 +309,7 @@
       whySource: "missing",
       why: "No evidence justifies weakening signature verification tests; front-loaded to Group 1 before production webhook edits.",
       proof: "Built-in Integrity Rules Fired: diffgloss/test-assertion-weakened + diffgloss/silent-error-swallow in src/billing/webhook.ts.",
+      omittedLines: [],
       rows: [
         { n: 8, kind: "ctx", t: '   it("rejects invalid signature", async () => {' },
         { n: 9, kind: "del", t: '-    await expect(handleWebhook(badEvent)).rejects.toThrow("Invalid signature");' },
@@ -226,11 +329,19 @@
     const d = DEMOS[activeDemo];
     if (!d || !demoBody) return;
     const hideWhat = selfCheck && !revealed;
+    const auditChipCls =
+      d.auditStatus === "verified"
+        ? "chip-green"
+        : d.auditStatus === "omission_detected"
+          ? "chip-amber"
+          : "chip-red";
 
     demoBody.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
         <div class="mono" style="font-size:13px"><strong>${d.path}</strong> <span style="color:var(--muted)">· ${d.symbol}</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="chip chip-slate">${d.explainerLabel}</span>
+          <span class="chip ${auditChipCls}">${d.auditLabel}</span>
           <span class="chip ${d.status === "explained" ? "chip-green" : "chip-red"}">${d.status}</span>
           <span class="chip chip-red">risk: ${d.risk}</span>
         </div>
@@ -241,7 +352,7 @@
             <span>What (Code Fact)</span>
             <span>
               <span class="chip chip-green">citations_valid ✓</span>
-              <span class="chip chip-cyan">${d.semantic}</span>
+              <span class="chip ${d.semantic === "judge_failed" ? "chip-red" : "chip-cyan"}">${d.semantic}</span>
             </span>
           </div>
           ${
@@ -264,10 +375,11 @@
       </div>
       <div class="demo-diff">
         ${d.rows
-          .map(
-            (r) =>
-              `<div class="d-row ${r.kind}${highlightedLines.includes(r.n) ? " hl" : ""}"><span class="d-num">${r.n}</span><span>${r.t.replace(/</g, "&lt;")}</span></div>`,
-          )
+          .map((r) => {
+            const isOmitted = (d.omittedLines || []).includes(r.n);
+            const isHl = highlightedLines.includes(r.n);
+            return `<div class="d-row ${r.kind}${isHl ? " hl" : ""}${isOmitted ? " omitted" : ""}"><span class="d-num">${r.n}</span><span>${r.t.replace(/</g, "&lt;")}</span>${isOmitted ? '<span class="d-omitted-tag">⚠ OMITTED BY AUTHOR</span>' : ""}</div>`;
+          })
           .join("")}
       </div>
       <div class="demo-proof"><strong>Glass-Box Evidence:</strong> ${d.proof}</div>
